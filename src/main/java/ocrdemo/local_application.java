@@ -4,6 +4,7 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.ec2.model.Filter;
 import com.amazonaws.services.ec2.model.Tag;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
@@ -20,17 +21,14 @@ import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class local_application {
 
-    private static AmazonS3 s3;
-
+    public static AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
+    public static AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
     public static void main(String[] args) throws IOException {
-        s3 = AmazonS3ClientBuilder.defaultClient();
+//        s3 = AmazonS3ClientBuilder.defaultClient();
 
 //        key pair request
 
@@ -41,9 +39,57 @@ public class local_application {
 //        TODO check tags to see if manager is up
 //        TODO get manager or create one
 
-        AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+//        DescribeInstancesRequest request = new DescribeInstancesRequest();
+//        Filter filter = new Filter("tag:manager");
+////        filter.withValues("Yes");
+//        request.withFilters(filter);
+//
+//        DescribeInstancesResult response = ec2.describeInstances(request.withFilters(filter));
+//        List<Reservation> reservations = response.getReservations();
+        String manager = null;
+//
+//        if(reservations!=null){
+//            System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+//            Reservation reservation = reservations.get(0);
+//            List<Instance> instances = reservation.getInstances();
+//            manager = instances.get(0);
+//        }
 
 //      continue with key after we got the manager
+
+
+        List<String> valuesT1 = new ArrayList<>();
+        valuesT1.add("manager");
+        List<String> valuesT2 = new ArrayList<>();
+        valuesT2.add("running");
+        Filter filter_manager = new Filter("tag:manager", valuesT1);
+        Filter filter_running = new Filter("instance-state-name",valuesT2);
+//        Filter filter_running = new Filter("tag:manager", valuesT1);
+
+        DescribeInstancesRequest request = new DescribeInstancesRequest().withFilters(filter_manager,filter_running);
+
+
+        DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter_manager,filter_running));
+
+        List<Reservation> reservations = result.getReservations();
+
+        for (Reservation reservation : reservations) {
+            List<Instance> instances = reservation.getInstances();
+
+            for (Instance instance : instances) {
+
+                System.out.println(instance.getInstanceId());
+                manager = instance.getInstanceId();
+                System.out.println("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"+ manager);
+
+
+            }
+        }
+
+
+
+
 
         CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
 
@@ -55,25 +101,40 @@ public class local_application {
         Tag tag = new Tag();
         tag.setKey("manager");
         tag.setValue("manager");
+        CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(tag);
+
+        tagsRequest.withTags(tag);
+
 
 
 
         TagSpecification tag_specification = new TagSpecification();
 
         //TODO check if a manager instance is active
+        if(manager == null) {
+            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+            runInstancesRequest.withImageId("ami-04d29b6f966df1537")
+                    .withInstanceType(InstanceType.T2Micro)
+                    .withMinCount(1).withMaxCount(1)
+                    .withKeyName(key_pair_string)  //TODO ?????
+                    .withSecurityGroupIds("sg-4f791b7d")
+                    .withTagSpecifications(tag_specification);
 
-        RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-        runInstancesRequest.withImageId("ami-04d29b6f966df1537")
-                .withInstanceType(InstanceType.T2Micro)
-                .withMinCount(1).withMaxCount(1)
-                .withKeyName(key_pair_string)  //TODO ?????
-                .withSecurityGroupIds("sg-4f791b7d")
-                .withTagSpecifications(tag_specification);
+
+            RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
+            String InstanceID = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
 
 
+            CreateTagsRequest tag_request = new CreateTagsRequest()
+                    .withTags(tag)
+                    .withResources(InstanceID);
 
-        RunInstancesResult result = ec2.runInstances(runInstancesRequest);
-
+            CreateTagsResult tag_response = ec2.createTags(tag_request);
+            System.out.println("===================================== MANAGER CREATED =================================================");
+        }
+        else{
+            System.out.println("===================================== MANAGER IS ALREADY UP =====================================================");
+        }
         String bucket_name = "moshehagever";
         Bucket bucket =  s3.createBucket(bucket_name);
 
@@ -84,12 +145,12 @@ public class local_application {
         String file_to_upload = "fileObjKeyName" + new Date().getTime();
         String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
 
-        PutObjectRequest request = new PutObjectRequest(bucket.getName(),file_to_upload , new File(path));
+        PutObjectRequest putObjectRequest = new PutObjectRequest(bucket.getName(),file_to_upload , new File(path));
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentType("moshe Type");
         metadata.addUserMetadata("title", "Amir.Tal rock hard");
-        request.setMetadata(metadata);
-        s3.putObject(request);
+        putObjectRequest.setMetadata(metadata);
+        s3.putObject(putObjectRequest);
 
 //    } catch (AmazonServiceException e) {
 //        // The call was transmitted successfully, but Amazon S3 couldn't process

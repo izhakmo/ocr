@@ -1,11 +1,13 @@
 package ocrdemo;
 
 
+import com.amazonaws.services.s3.AmazonS3;
 
 public class Manager {
 
     public static void main(String[] args){
-
+        AmazonS3 s3= local_application.s3;
+//        s3.getbucket
 //        start manager etc
 //        get local_to_manager queue
 //        get manager_to_local queue
