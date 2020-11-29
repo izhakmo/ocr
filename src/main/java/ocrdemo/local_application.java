@@ -1,24 +1,27 @@
 package ocrdemo;
 import com.amazonaws.regions.Regions;
+import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2Client;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
+import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.model.Bucket;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.AmazonSQSException;
 import com.amazonaws.services.sqs.model.CreateQueueRequest;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
+import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Date;
-import java.util.Random;
+import java.util.List;
+import java.util.Map;
 
 public class local_application {
 
@@ -27,18 +30,52 @@ public class local_application {
     public static void main(String[] args) throws IOException {
         s3 = AmazonS3ClientBuilder.defaultClient();
 
-        Bucket bucket =  s3.createBucket("moshehagever");
+//        key pair request
+
+        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
+        createKeyPairRequest.withKeyName("my-key-pair3");
+
+//        TODO check tags to see if manager is up
+//        TODO get manager or create one
+
+        AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+
+//      continue with key after we got the manager
+
+        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
+
+        KeyPair keyPair = new KeyPair();
+        keyPair = createKeyPairResult.getKeyPair();
+
+        String privateKey = keyPair.getKeyMaterial();
 
 
-//        // Upload a text string as a new object.
-//        s3.putObject("moshehagever", "stringObjKeyName", "Uploaded String Object");
+
+
+        //TODO check if a manager instance is active
+
+        RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+        runInstancesRequest.withImageId("ami-04d29b6f966df1537")
+                .withInstanceType(InstanceType.T2Micro)
+                .withMinCount(1).withMaxCount(1)
+                .withKeyName("my-key-pair3")  //TODO ?????
+                .withSecurityGroupIds("sg-4f791b7d");
+
+
+
+        RunInstancesResult result = ec2.runInstances(runInstancesRequest);
+
+        String bucket_name = "moshehagever";
+        Bucket bucket =  s3.createBucket(bucket_name);
+
+
 
 
         // Upload a file as a new object with ContentType and title specified.
-        String objectKey = "fileObjKeyName";
+        String file_to_upload = "fileObjKeyName" + new Date().getTime();
         String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
 
-        PutObjectRequest request = new PutObjectRequest(bucket.getName(),objectKey , new File(path));
+        PutObjectRequest request = new PutObjectRequest(bucket.getName(),file_to_upload , new File(path));
         ObjectMetadata metadata = new ObjectMetadata();
         metadata.setContentType("moshe Type");
         metadata.addUserMetadata("title", "Amir.Tal rock hard");
@@ -57,14 +94,40 @@ public class local_application {
 
         AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
 
-        String queue_url = sqs.createQueue("MyQueue" + new Date().getTime())
+        String local_to_manager = sqs.createQueue("local_to_manager" + new Date().getTime())
+                .getQueueUrl();
+
+        String manager_to_local = sqs.createQueue("manager_to_local" + new Date().getTime())
                 .getQueueUrl();
 
         SendMessageRequest send_msg_request = new SendMessageRequest()
-                .withQueueUrl(queue_url)
-                .withMessageBody(objectKey);
+                .withQueueUrl(local_to_manager)
+                .withMessageBody(file_to_upload);
 
         sqs.sendMessage(send_msg_request);
+
+        List<Message> messages = sqs.receiveMessage(manager_to_local).getMessages();
+
+        GetObjectRequest object_request = new GetObjectRequest(bucket_name,messages.get(0).getBody());
+
+        S3Object o = s3.getObject(object_request);
+        S3ObjectInputStream object_content = o.getObjectContent();
+
+
+//        Map<String,String> attributes =  messages.get(0).getAttributes();
+//        if (attributes.containsKey("done task")){
+
+
+
+        if(args.length > 4 && args[4].equals("terminate")) {
+            SendMessageRequest terminate_request = new SendMessageRequest()
+                    .withQueueUrl(local_to_manager)
+                    .withMessageBody("terminate");
+
+            sqs.sendMessage(terminate_request);
+        }
+//            //TODO terminate manager at EC2
+//        }
 
 //            TODO check Qs - open manager if we no manager is up ==> tags
 //            TODO response
