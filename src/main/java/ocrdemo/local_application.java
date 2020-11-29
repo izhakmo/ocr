@@ -4,6 +4,7 @@ import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.ec2.model.Tag;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
@@ -19,6 +20,7 @@ import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -32,8 +34,9 @@ public class local_application {
 
 //        key pair request
 
+        String key_pair_string = "key"+new Date().getTime();
         CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
-        createKeyPairRequest.withKeyName("my-key-pair3");
+        createKeyPairRequest.withKeyName(key_pair_string);
 
 //        TODO check tags to see if manager is up
 //        TODO get manager or create one
@@ -49,8 +52,13 @@ public class local_application {
 
         String privateKey = keyPair.getKeyMaterial();
 
+        Tag tag = new Tag();
+        tag.setKey("manager");
+        tag.setValue("manager");
 
 
+
+        TagSpecification tag_specification = new TagSpecification();
 
         //TODO check if a manager instance is active
 
@@ -58,8 +66,9 @@ public class local_application {
         runInstancesRequest.withImageId("ami-04d29b6f966df1537")
                 .withInstanceType(InstanceType.T2Micro)
                 .withMinCount(1).withMaxCount(1)
-                .withKeyName("my-key-pair3")  //TODO ?????
-                .withSecurityGroupIds("sg-4f791b7d");
+                .withKeyName(key_pair_string)  //TODO ?????
+                .withSecurityGroupIds("sg-4f791b7d")
+                .withTagSpecifications(tag_specification);
 
 
 
@@ -108,10 +117,10 @@ public class local_application {
 
         List<Message> messages = sqs.receiveMessage(manager_to_local).getMessages();
 
-        GetObjectRequest object_request = new GetObjectRequest(bucket_name,messages.get(0).getBody());
-
-        S3Object o = s3.getObject(object_request);
-        S3ObjectInputStream object_content = o.getObjectContent();
+//        GetObjectRequest object_request = new GetObjectRequest(bucket_name,messages.get(0).getBody());
+//
+//        S3Object o = s3.getObject(object_request);
+//        S3ObjectInputStream object_content = o.getObjectContent();
 
 
 //        Map<String,String> attributes =  messages.get(0).getAttributes();
