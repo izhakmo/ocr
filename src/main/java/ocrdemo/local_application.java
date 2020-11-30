@@ -11,12 +11,8 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
-import com.amazonaws.services.sqs.model.AmazonSQSException;
-import com.amazonaws.services.sqs.model.CreateQueueRequest;
+import com.amazonaws.services.sqs.model.*;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
-import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.SendMessageRequest;
-
 
 
 import java.io.File;
@@ -25,28 +21,8 @@ import java.util.*;
 
 public class local_application {
 
-    public static AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
-    public static AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
-    public static void main(String[] args) throws IOException {
-//        s3 = AmazonS3ClientBuilder.defaultClient();
 
-//        key pair request
-
-        String key_pair_string = "key"+new Date().getTime();
-        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
-        createKeyPairRequest.withKeyName(key_pair_string);
-
-//        TODO check tags to see if manager is up
-//        TODO get manager or create one
-
-
-//        DescribeInstancesRequest request = new DescribeInstancesRequest();
-//        Filter filter = new Filter("tag:manager");
-////        filter.withValues("Yes");
-//        request.withFilters(filter);
-//
-//        DescribeInstancesResult response = ec2.describeInstances(request.withFilters(filter));
-//        List<Reservation> reservations = response.getReservations();
+    public static String GetManager(AmazonEC2 ec2){
         String manager = null;
 //
 //        if(reservations!=null){
@@ -86,8 +62,30 @@ public class local_application {
 
             }
         }
+        return manager;
+    }
 
 
+    public static AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
+    public static AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+    public static AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
+
+    public static void main(String[] args) throws IOException {
+//        s3 = AmazonS3ClientBuilder.defaultClient();
+
+//        key pair request
+
+        String key_pair_string = "key"+new Date().getTime();
+        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
+        createKeyPairRequest.withKeyName(key_pair_string);
+
+//        TODO check tags to see if manager is up
+//        TODO get manager or create one
+
+
+
+        String managerID = GetManager(ec2);
+        String local_to_managerSQS;
 
 
 
@@ -98,20 +96,19 @@ public class local_application {
 
         String privateKey = keyPair.getKeyMaterial();
 
-        Tag tag = new Tag();
-        tag.setKey("manager");
-        tag.setValue("manager");
-        CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(tag);
-
-        tagsRequest.withTags(tag);
-
-
-
-
-        TagSpecification tag_specification = new TagSpecification();
 
         //TODO check if a manager instance is active
-        if(manager == null) {
+        if(managerID == null) {
+            Tag tag = new Tag();
+            tag.setKey("manager");
+            tag.setValue("manager");
+            CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(tag);
+
+            tagsRequest.withTags(tag);
+
+            TagSpecification tag_specification = new TagSpecification();
+
+
             RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
             runInstancesRequest.withImageId("ami-04d29b6f966df1537")
                     .withInstanceType(InstanceType.T2Micro)
@@ -122,28 +119,39 @@ public class local_application {
 
 
             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
-            String InstanceID = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
+            managerID = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
 
 
             CreateTagsRequest tag_request = new CreateTagsRequest()
                     .withTags(tag)
-                    .withResources(InstanceID);
+                    .withResources(managerID);
 
             CreateTagsResult tag_response = ec2.createTags(tag_request);
+
+            local_to_managerSQS = sqs.createQueue("local-to-manager-sqs" + managerID)
+                    .getQueueUrl();
+
             System.out.println("===================================== MANAGER CREATED =================================================");
         }
         else{
+            local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
+            System.out.println("QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\n"+ local_to_managerSQS);
+
             System.out.println("===================================== MANAGER IS ALREADY UP =====================================================");
         }
-        String bucket_name = "moshehagever";
+        String bucket_name = "manager-bucket-"+managerID;
         Bucket bucket =  s3.createBucket(bucket_name);
 
 
 
+//        TODO so far the number below is defualt and not the real one
+        String number_of_tasks_per_worker =  "42";
 
         // Upload a file as a new object with ContentType and title specified.
-        String file_to_upload = "fileObjKeyName" + new Date().getTime();
+        String file_to_upload = "fileObjKeyName" + new Date().getTime() +"xxxxxx"+number_of_tasks_per_worker;
         String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
+
+
 
         PutObjectRequest putObjectRequest = new PutObjectRequest(bucket.getName(),file_to_upload , new File(path));
         ObjectMetadata metadata = new ObjectMetadata();
@@ -162,21 +170,27 @@ public class local_application {
 //        e.printStackTrace();
 //    }
 
-        AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
 
-        String local_to_manager = sqs.createQueue("local_to_manager" + new Date().getTime())
-                .getQueueUrl();
+//        String local_to_managerSQS = sqs.createQueue("local-to-manager-sqs" + managerID)
+//                .getQueueUrl();
 
-        String manager_to_local = sqs.createQueue("manager_to_local" + new Date().getTime())
-                .getQueueUrl();
+        System.out.println("QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\n"+ local_to_managerSQS);
+
+//        String manager_to_local = sqs.createQueue("manager_to_local" + new Date().getTime())
+//                .getQueueUrl();
+
+//        MessageAttributeValue tasks_per_worker = new MessageAttributeValue().withDataType("String");
+//        tasks_per_worker.setStringValue(number_of_tasks_per_worker);
+
 
         SendMessageRequest send_msg_request = new SendMessageRequest()
-                .withQueueUrl(local_to_manager)
+                .withQueueUrl(local_to_managerSQS)
                 .withMessageBody(file_to_upload);
+//                .addMessageAttributesEntry("number_of_tasks_per_worker",tasks_per_worker);
 
         sqs.sendMessage(send_msg_request);
 
-        List<Message> messages = sqs.receiveMessage(manager_to_local).getMessages();
+//        List<Message> messages = sqs.receiveMessage(manager_to_local).getMessages();
 
 //        GetObjectRequest object_request = new GetObjectRequest(bucket_name,messages.get(0).getBody());
 //
@@ -191,7 +205,7 @@ public class local_application {
 
         if(args.length > 4 && args[4].equals("terminate")) {
             SendMessageRequest terminate_request = new SendMessageRequest()
-                    .withQueueUrl(local_to_manager)
+                    .withQueueUrl(local_to_managerSQS)
                     .withMessageBody("terminate");
 
             sqs.sendMessage(terminate_request);
