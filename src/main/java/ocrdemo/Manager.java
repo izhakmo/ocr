@@ -13,6 +13,7 @@ import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +38,7 @@ public class Manager {
         AmazonEC2 ec2 = local_application.ec2;
         AmazonSQS sqs = local_application.sqs;
         String managerID = local_application.GetManager(ec2);
+
         System.out.println("QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\n managerID: "+ managerID);
 
         String local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
@@ -48,21 +50,86 @@ public class Manager {
         int msg_to_workers_queue_counter = 0;
 
 
-        while (! messages.isEmpty()) {
-            while (!messages.isEmpty()) {
-                Message msg = messages.remove(0);
-//                Map<String, String> number = msg.getAttributes();
-//                if(number.containsValue("3"))
-//                    System.out.println("ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ");
-//
-//                System.out.println("ZZZZZZZZZZZZZZZZZZZZZZZ \n\n"+number+ "\n\n");
+        String key_pair_string = "key"+new Date().getTime();
+        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
+        createKeyPairRequest.withKeyName(key_pair_string);
 
-//                String msgBody = msg.getBody().substring(0,msg.getBody().indexOf("xxxxxx"));
+        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
+
+        KeyPair keyPair = new KeyPair();
+        keyPair = createKeyPairResult.getKeyPair();
+
+
+
+        String manager_to_workers_queue = null;
+        try {
+            manager_to_workers_queue = sqs.getQueueUrl("manager"+managerID + "_to_workers").getQueueUrl();
+        }
+        catch (QueueDoesNotExistException e){
+            manager_to_workers_queue = sqs.createQueue("manager"+managerID + "_to_workers").getQueueUrl();
+        }
+
+
+
+
+
+        List<String> valuesT1 = new ArrayList<>();
+        valuesT1.add("worker");
+        List<String> valuesT2 = new ArrayList<>();
+        valuesT2.add("running");
+        valuesT2.add("pending");
+        Filter filter_worker = new Filter("tag:worker", valuesT1);
+        Filter filter_running = new Filter("instance-state-name",valuesT2);
+
+        DescribeInstancesRequest request = new DescribeInstancesRequest().withFilters(filter_worker,filter_running);
+
+
+        DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter_worker,filter_running));
+
+        List<Reservation> reservations = result.getReservations();
+        ArrayList<String> active_workersID = new ArrayList<>();
+
+
+        for (Reservation reservation : reservations) {
+            List<Instance> instances = reservation.getInstances();
+
+            for (Instance instance : instances) {
+
+                System.out.println(instance.getInstanceId());
+                active_workersID.add(instance.getInstanceId());
+
+            }
+        }
+
+        int number_of_active_workers = active_workersID.size();
+        System.out.println("number_of_active_workers: "+number_of_active_workers);
+
+
+        Tag worker_tag = new Tag();
+        worker_tag.setKey("worker");
+        worker_tag.setValue("worker");
+
+        CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(worker_tag);
+
+        tagsRequest.withTags(worker_tag);
+
+        TagSpecification tag_specification = new TagSpecification();
+
+
+
+        while (! messages.isEmpty()) {
+            while (! messages.isEmpty()) {
+
+
+
+
+                Message msg = messages.remove(0);
+
                 String msgBody = msg.getBody();
-                String number = msg.getBody().substring(msg.getBody().indexOf("xxxxxx")+6);
+                String number_of_messages_per_worker = msg.getBody().substring(msg.getBody().indexOf("xxxxxx")+6);
                 GetObjectRequest object_request = new GetObjectRequest(bucketName,msgBody);
 
-                System.out.println("ZZZZZZZZZZZZZZZZZZZZZZZ \n\n"+number+ "\n\n");
+                System.out.println("ZZZZZZZZZZZZZZZZZZZZZZZ \n\n"+number_of_messages_per_worker+ "\n\n");
 
 
                 S3Object o = s3.getObject(object_request);
@@ -73,14 +140,9 @@ public class Manager {
 
                 BufferedReader reader = new BufferedReader(new InputStreamReader(object_content));
                 String line = null;
-                String manager_to_workers_queue;
-                try {
-                    manager_to_workers_queue = sqs.getQueueUrl("manager"+managerID + "_to_workers").getQueueUrl();
-                }
-                catch (QueueDoesNotExistException e){
-                    manager_to_workers_queue = sqs.createQueue("manager"+managerID + "_to_workers").getQueueUrl();
-                }
 
+
+//                send the url messages ang count them
                 while ((line = reader.readLine()) != null) {
                     if(line.length()==0)    {  continue; }
 
@@ -94,48 +156,52 @@ public class Manager {
                     msg_to_workers_queue_counter++;
 
                 }
-                int number_of_workers = msg_to_workers_queue_counter/ Integer.parseInt(number)+1;
+                int number_of_workers_needed_for_task = (msg_to_workers_queue_counter/ Integer.parseInt(number_of_messages_per_worker))+1;
+                System.out.println(msg_to_manager_Counter+ ". number_of_workers_needed_for_task: "+ number_of_workers_needed_for_task);
 
 
-//                TODO find solution
-                String key_pair_string = "key"+new Date().getTime();
-                CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
-                createKeyPairRequest.withKeyName(key_pair_string);
-
-                CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
-
-                KeyPair keyPair = new KeyPair();
-                keyPair = createKeyPairResult.getKeyPair();
 
 
-                Tag tag = new Tag();
-                tag.setKey("manager");
-                tag.setValue("manager");
-                CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(tag);
+                int number_of_workers_to_create = number_of_workers_needed_for_task-number_of_active_workers;
+                number_of_workers_to_create = Math.max(number_of_workers_to_create, 0);
 
-                tagsRequest.withTags(tag);
+                System.out.println("number_of_workers_to_create: "+ number_of_workers_to_create);
 
-                TagSpecification tag_specification = new TagSpecification();
+                if(number_of_workers_to_create >0) {
 
 
-                RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-                runInstancesRequest.withImageId("ami-04d29b6f966df1537")
-                        .withInstanceType(InstanceType.T2Micro)
-                        .withMinCount(number_of_workers).withMaxCount(number_of_workers)
-                        .withKeyName(key_pair_string)  //TODO ?????
-                        .withSecurityGroupIds("sg-4f791b7d")
-                        .withTagSpecifications(tag_specification);
+                    RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+                    runInstancesRequest.withImageId("ami-04d29b6f966df1537")
+                            .withInstanceType(InstanceType.T2Micro)
+                            .withMinCount(number_of_workers_needed_for_task).withMaxCount(number_of_workers_needed_for_task)
+                            .withKeyName(key_pair_string)  //TODO ?????
+                            .withSecurityGroupIds("sg-40bbd972")
+                            .withTagSpecifications(tag_specification);
 
 
-                RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
-                managerID = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
+                    RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
+                    List<Instance> worker_instances = runInstancesResult.getReservation().getInstances();
 
 
-                CreateTagsRequest tag_request = new CreateTagsRequest()
-                        .withTags(tag)
-                        .withResources(managerID);
+                    ArrayList<String> workersID = new ArrayList<>();
+                    int number_of_workers_to_print = 1;
+                    while (!worker_instances.isEmpty()) {
+                        workersID.add(worker_instances.remove(0).getInstanceId());
 
-                CreateTagsResult tag_response = ec2.createTags(tag_request);
+//                        workersID.add(worker_instances.get(0).getInstanceId());
+
+                        System.out.println("\n\n" + "number_of_workers_to_print: " + number_of_workers_to_print);
+                        number_of_workers_to_print++;
+
+
+                    }
+
+                    CreateTagsRequest tag_request = new CreateTagsRequest()
+                            .withTags(worker_tag)
+                            .withResources(workersID);
+
+                    CreateTagsResult tag_response = ec2.createTags(tag_request);
+                }
 
 
                 System.out.println("msg_to_workers_queue_counter: "+ msg_to_workers_queue_counter);
