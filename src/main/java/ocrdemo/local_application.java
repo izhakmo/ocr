@@ -79,10 +79,6 @@ public class local_application {
         CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
         createKeyPairRequest.withKeyName(key_pair_string);
 
-//        TODO check tags to see if manager is up
-//        TODO get manager or create one
-
-
 
         String managerID = GetManager(ec2);
         String local_to_managerSQS;
@@ -145,7 +141,7 @@ public class local_application {
 
 
 //        TODO so far the number below is defualt and not the real one
-        String number_of_tasks_per_worker =  "42";
+        String number_of_tasks_per_worker =  "10";
 
         // Upload a file as a new object with ContentType and title specified.
         String file_to_upload = "fileObjKeyName" + new Date().getTime() +"xxxxxx"+number_of_tasks_per_worker;
