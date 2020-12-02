@@ -39,6 +39,7 @@ public class local_application {
         valuesT1.add("manager");
         List<String> valuesT2 = new ArrayList<>();
         valuesT2.add("running");
+        valuesT2.add("pending");
         Filter filter_manager = new Filter("tag:manager", valuesT1);
         Filter filter_running = new Filter("instance-state-name",valuesT2);
 //        Filter filter_running = new Filter("tag:manager", valuesT1);
@@ -110,7 +111,7 @@ public class local_application {
                     .withInstanceType(InstanceType.T2Micro)
                     .withMinCount(1).withMaxCount(1)
                     .withKeyName(key_pair_string)  //TODO ?????
-                    .withSecurityGroupIds("sg-40bbd972")
+                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
                     .withTagSpecifications(tag_specification);
 
 
@@ -141,7 +142,7 @@ public class local_application {
 
 
 //        TODO so far the number below is defualt and not the real one
-        String number_of_tasks_per_worker =  "4";
+        String number_of_tasks_per_worker =  "5";
 
         // Upload a file as a new object with ContentType and title specified.
         String file_to_upload = "fileObjKeyName" + new Date().getTime() +"xxxxxx"+number_of_tasks_per_worker;
