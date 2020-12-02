@@ -115,7 +115,7 @@ public class Manager {
         AmazonSQS sqs = local_application.sqs;
         String managerID = local_application.GetManager(ec2);
 
-        System.out.println("QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\n managerID: "+ managerID);
+        System.out.println("managerID: "+ managerID);
 
         String local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
 
@@ -165,7 +165,7 @@ public class Manager {
 
             for (Instance instance : instances) {
 
-                System.out.println(instance.getInstanceId());
+                System.out.println("instance.getInstanceId() "+instance.getInstanceId());
                 active_workersID.add(instance.getInstanceId());
 
             }
@@ -196,15 +196,16 @@ public class Manager {
                 Message msg = messages.remove(0);
 
                 String msgBody = msg.getBody();
-                String number_of_messages_per_worker = msg.getBody().substring(msg.getBody().indexOf("xxxxxx")+6);
+                String [] msg_splitted =msgBody.split(" ");
+                String number_of_messages_per_worker = msg_splitted[1];
                 GetObjectRequest object_request = new GetObjectRequest(bucketName,msgBody);
 
-                System.out.println("ZZZZZZZZZZZZZZZZZZZZZZZ \n\n"+number_of_messages_per_worker+ "\n\n");
+                System.out.println("number_of_messages_per_worker: "+number_of_messages_per_worker);
 
 
                 S3Object o = s3.getObject(object_request);
                 S3ObjectInputStream object_content = o.getObjectContent();
-                System.out.println(msg_to_manager_Counter+". \n\n"+" ====================================\n\n");
+                System.out.println(msg_to_manager_Counter+". msg_to_manager_Counter");
 //                displayTextInputStream(object_content);
 
 
@@ -277,7 +278,7 @@ public class Manager {
 
 //                        workersID.add(worker_instances.get(0).getInstanceId());
 
-                        System.out.println("\n\n" + "number_of_workers_to_print: " + number_of_workers_to_print);
+                        System.out.println("number_of_workers_to_print: " + number_of_workers_to_print);
                         number_of_workers_to_print++;
 
 

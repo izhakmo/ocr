@@ -58,7 +58,7 @@ public class local_application {
 
                 System.out.println(instance.getInstanceId());
                 manager = instance.getInstanceId();
-                System.out.println("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"+ manager);
+                System.out.println("manager: "+ manager);
 
 
             }
@@ -132,7 +132,7 @@ public class local_application {
         }
         else{
             local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
-            System.out.println("QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\n"+ local_to_managerSQS);
+            System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
 
             System.out.println("===================================== MANAGER IS ALREADY UP =====================================================");
         }
@@ -145,7 +145,8 @@ public class local_application {
         String number_of_tasks_per_worker =  "5";
 
         // Upload a file as a new object with ContentType and title specified.
-        String file_to_upload = "fileObjKeyName" + new Date().getTime() +"xxxxxx"+number_of_tasks_per_worker;
+        String local_app_name = "Izhak";
+        String file_to_upload = "fileObjKeyName" + new Date().getTime() +" "+number_of_tasks_per_worker + " " + local_app_name;
         String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
 
 
@@ -171,7 +172,7 @@ public class local_application {
 //        String local_to_managerSQS = sqs.createQueue("local-to-manager-sqs" + managerID)
 //                .getQueueUrl();
 
-        System.out.println("QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ\n"+ local_to_managerSQS);
+        System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
 
 //        String manager_to_local = sqs.createQueue("manager_to_local" + new Date().getTime())
 //                .getQueueUrl();
