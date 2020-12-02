@@ -110,7 +110,7 @@ public class local_application {
                     .withInstanceType(InstanceType.T2Micro)
                     .withMinCount(1).withMaxCount(1)
                     .withKeyName(key_pair_string)  //TODO ?????
-                    .withSecurityGroupIds("sg-4f791b7d")
+                    .withSecurityGroupIds("sg-4d22bd78")
                     .withTagSpecifications(tag_specification);
 
 
@@ -145,7 +145,7 @@ public class local_application {
 
         // Upload a file as a new object with ContentType and title specified.
         String file_to_upload = "fileObjKeyName" + new Date().getTime() +"xxxxxx"+number_of_tasks_per_worker;
-        String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
+        String path = "C:\\Users\\OmerN\\Desktop\\Projects\\ocr\\text.images.txt";     //TODO need to be args[0]
 
 
 

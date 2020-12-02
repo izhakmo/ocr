@@ -13,6 +13,7 @@ import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,81 @@ public class Manager {
         }
         System.out.println();
     }
+
+    public static Tag createTags(String name, String value){
+        Tag tag = new Tag();
+        tag.setKey(name);
+        tag.setValue(value);
+        CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(tag);
+
+        tagsRequest.withTags(tag);
+
+        return tag;
+    }
+
+    public static KeyPair createKeyPair(String keyName, AmazonEC2 ec2){
+        String key_pair_string = keyName+new Date().getTime();
+        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
+        createKeyPairRequest.withKeyName(key_pair_string);
+
+        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
+
+        KeyPair keyPair = new KeyPair();
+        keyPair = createKeyPairResult.getKeyPair();
+
+        return keyPair;
+    }
+
+    public static String getWorker(AmazonEC2 ec2) {
+        String worker = null;
+        List<String> valuesT1 = new ArrayList<>();
+        valuesT1.add("worker");
+        List<String> valuesT2 = new ArrayList<>();
+        valuesT2.add("running");
+        Filter filter_worker = new Filter("tag:worker", valuesT1);
+        Filter filter_running = new Filter("instance-state-name", valuesT2);
+
+        DescribeInstancesRequest request = new DescribeInstancesRequest().withFilters(filter_worker, filter_running);
+
+
+        DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter_worker, filter_running));
+
+        List<Reservation> reservations = result.getReservations();
+        List<Instance> instances = null;
+        for (Reservation reservation : reservations) {
+            instances = reservation.getInstances();
+        }
+        if (!instances.isEmpty()) {
+            worker = instances.remove(0).getInstanceId();
+            return worker;
+        } else {
+            return null;
+        }
+    }
+
+    public static String getManager_to_WorkerSQS(AmazonSQS sqs, AmazonEC2 ec2){
+        String manager_to_workers_queue;
+        try {
+            manager_to_workers_queue = sqs.getQueueUrl("manager"+local_application.GetManager(ec2) + "_to_workers").getQueueUrl();
+        }
+        catch (QueueDoesNotExistException e){
+            manager_to_workers_queue = sqs.createQueue("manager"+local_application.GetManager(ec2) + "_to_workers").getQueueUrl();
+        }
+        return manager_to_workers_queue;
+    }
+
+    public static String getWorker_to_ManagerSQS(AmazonSQS sqs, AmazonEC2 ec2){
+        String worker_to_manager_queue;
+        try {
+            worker_to_manager_queue = sqs.getQueueUrl("worker_to_manager" + local_application.GetManager(ec2)).getQueueUrl();
+        }
+        catch (QueueDoesNotExistException e){
+            worker_to_manager_queue = sqs.createQueue("worker_to_manager" + local_application.GetManager(ec2)).getQueueUrl();
+        }
+        return worker_to_manager_queue;
+    }
+
+
 
     public static void main(String[] args) throws IOException {
         AmazonS3 s3 = local_application.s3;
@@ -98,23 +174,9 @@ public class Manager {
 
 
 //                TODO find solution
-                String key_pair_string = "key"+new Date().getTime();
-                CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
-                createKeyPairRequest.withKeyName(key_pair_string);
 
-                CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
-
-                KeyPair keyPair = new KeyPair();
-                keyPair = createKeyPairResult.getKeyPair();
-
-
-                Tag tag = new Tag();
-                tag.setKey("manager");
-                tag.setValue("manager");
-                CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(tag);
-
-                tagsRequest.withTags(tag);
-
+                KeyPair keyPair = createKeyPair("key", ec2);
+                Tag tag = createTags("worker","worker");
                 TagSpecification tag_specification = new TagSpecification();
 
 
@@ -122,13 +184,13 @@ public class Manager {
                 runInstancesRequest.withImageId("ami-04d29b6f966df1537")
                         .withInstanceType(InstanceType.T2Micro)
                         .withMinCount(number_of_workers).withMaxCount(number_of_workers)
-                        .withKeyName(key_pair_string)  //TODO ?????
-                        .withSecurityGroupIds("sg-4f791b7d")
+                        .withKeyName(keyPair.getKeyName())  //TODO ?????
+                        .withSecurityGroupIds("sg-4d22bd78")
                         .withTagSpecifications(tag_specification);
 
 
                 RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
-                managerID = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
+                String workerID = runInstancesResult.getReservation().getInstances().get(0).getInstanceId();
 
 
                 CreateTagsRequest tag_request = new CreateTagsRequest()
