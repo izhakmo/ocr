@@ -1,12 +1,10 @@
 package ocrdemo;
 
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import net.sourceforge.tess4j.ITesseract;
 import net.sourceforge.tess4j.Tesseract;
@@ -15,10 +13,9 @@ import org.apache.commons.io.FileUtils;
 
 import java.io.*;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Date;
+
 import java.util.List;
-import java.util.Map;
+
 
 public class Worker {
     public static void main(String[] args) throws IOException {
@@ -28,7 +25,7 @@ public class Worker {
         String managerID = local_application.GetManager(ec2);
         String manager_to_workers_queue = Manager.getManager_to_WorkerSQS(sqs, ec2);
         String worker_to_manager_queue = Manager.getWorker_to_ManagerSQS(sqs,ec2);
-        String workerID = Manager.getWorker(ec2);
+//        String workerID = Manager.getWorker(ec2);
         String bucketName = "manager-bucket-" + managerID;
         List<Message> messages =sqs.receiveMessage(manager_to_workers_queue).getMessages();
         ITesseract img_ocr_object = new Tesseract();
@@ -55,22 +52,26 @@ public class Worker {
 
                 File file = new File(file_to_upload_to_s3);
                 System.out.println("file created" + file_to_upload_to_s3);
+                String ocr_output;
                 try {
-                    FileUtils.copyURLToFile(new URL(url), file,5000,5000);
-                    String ocr_output = null;
-                    try {
+                    FileUtils.copyURLToFile(new URL(url), file,2000,2000);
+//                    try {
                         ocr_output = img_ocr_object.doOCR(file);
-                    } catch (TesseractException e) {
+                }
+                catch (TesseractException e) {
                         System.out.println(ocr_fail_counter + ". ocr failed");
                         ocr_fail_counter++;
 
                         ocr_output = url + ": ocr failed";
                     }
+                catch (Exception e) {
+                    ocr_output = url + ": broken or illegal url";
+                }
                     if (ocr_output != null) {
                         String path_s3  = folder_name + "/" +file_to_upload_to_s3;
 
                         String txt_file_name = file_to_upload_to_s3 + ".txt";
-                        String txt_path_s3 = path_s3 + ".txt";
+                        String txt_path_s3 = folder_name + "/" + url + ".txt";
                         File txt_file = new File(txt_file_name);
                         FileWriter file_writer = new FileWriter(txt_file_name);
                         file_writer.write(ocr_output);
@@ -99,14 +100,14 @@ public class Worker {
 
 
                     }
-                }
-                catch (Exception e){
-                    System.out.println("illegal url : " +  url );
-
-
-
-
-                }
+//                }
+//                catch (Exception e){
+//                    System.out.println("illegal url : " +  url );
+//
+//
+//
+//
+//                }
 
 
 

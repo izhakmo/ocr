@@ -1,7 +1,5 @@
 package ocrdemo;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.ec2.AmazonEC2;
-import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.ec2.model.Filter;
@@ -12,7 +10,6 @@ import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.*;
-import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 
 
 import java.io.*;
@@ -23,13 +20,7 @@ public class local_application {
 
     public static String GetManager(AmazonEC2 ec2){
         String manager = null;
-//
-//        if(reservations!=null){
-//            System.out.println("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX");
-//            Reservation reservation = reservations.get(0);
-//            List<Instance> instances = reservation.getInstances();
-//            manager = instances.get(0);
-//        }
+
 
 //      continue with key after we got the manager
 
@@ -71,7 +62,6 @@ public class local_application {
     public static AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
 
     public static void main(String[] args) throws IOException {
-//        s3 = AmazonS3ClientBuilder.defaultClient();
 
 //        key pair request
 
@@ -87,10 +77,11 @@ public class local_application {
 
         CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
 
-        KeyPair keyPair = new KeyPair();
+        KeyPair keyPair;
         keyPair = createKeyPairResult.getKeyPair();
 
-        String privateKey = keyPair.getKeyMaterial();
+//        String privateKey = keyPair.getKeyMaterial();
+        keyPair.getKeyMaterial();
 
 
         //TODO check if a manager instance is active
@@ -104,14 +95,28 @@ public class local_application {
 
             TagSpecification tag_specification = new TagSpecification();
 
+            IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
+                    .withName("worker_and_sons");
 
+//            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+//            runInstancesRequest.withImageId("ami-04d29b6f966df1537")
+//                    .withInstanceType(InstanceType.T2Micro)
+//                    .withMinCount(1).withMaxCount(1)
+//                    .withKeyName(key_pair_string)  //TODO ?????
+//                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
+//                    .withTagSpecifications(tag_specification);
+
+
+//                    TODO this is not a todo
+//                      its omer's image and securityGroups
             RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-            runInstancesRequest.withImageId("ami-04d29b6f966df1537")
+            runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
                     .withInstanceType(InstanceType.T2Micro)
                     .withMinCount(1).withMaxCount(1)
                     .withKeyName(key_pair_string)  //TODO ?????
                     .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-                    .withTagSpecifications(tag_specification);
+                    .withTagSpecifications(tag_specification)
+                    .withIamInstanceProfile(spec);
 
 
             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
@@ -122,7 +127,8 @@ public class local_application {
                     .withTags(tag)
                     .withResources(managerID);
 
-            CreateTagsResult tag_response = ec2.createTags(tag_request);
+//            CreateTagsResult tag_response = ec2.createTags(tag_request);
+            ec2.createTags(tag_request);
 
             local_to_managerSQS = sqs.createQueue("local-to-manager-sqs" + managerID).getQueueUrl();
 
@@ -141,16 +147,19 @@ public class local_application {
 
 
 //        TODO so far the number below is defualt and not the real one
-        String number_of_tasks_per_worker =  "5";
+//        String number_of_tasks_per_worker =  "5";
+        String number_of_tasks_per_worker =  args[5];
 
         // Upload a file as a new object with ContentType and title specified.
         String local_app_name = "Izhak"+new Date().getTime();
+//        String local_app_name = "Izhak1607356236606";
 
         String manager_to_localSQS = sqs.createQueue("manager-to-local-sqs" + local_app_name)
                 .getQueueUrl();
 
         String file_to_upload = "fileObjKeyName" + new Date().getTime() +" "+number_of_tasks_per_worker + " " + local_app_name;
-        String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
+//        String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
+        String path = args[3];
 
 
 
@@ -184,7 +193,7 @@ public class local_application {
         sqs.sendMessage(send_msg_request);
 
 
-//        TODO wait until we get a msg and then process it
+//        wait until we get a msg and then process it
         ReceiveMessageRequest task_is_done_msg_request = new ReceiveMessageRequest(manager_to_localSQS);
         task_is_done_msg_request.withWaitTimeSeconds(20);
 
@@ -199,9 +208,8 @@ public class local_application {
 
         }
 
-//        TODO html
-        System.out.println("============================== TODO html ==================================== ");
-        String output_file_name = "output" + new Date().getTime() + ".html";
+//        String output_file_name = "output" + new Date().getTime() + ".html";
+        String output_file_name = args[4] + ".html";
         int end_of_name = output_file_name.length()-5;
 
         File output_file = new File(output_file_name);
@@ -209,8 +217,11 @@ public class local_application {
         fileWriter.write("<html>\n<head>\n<title>" + output_file_name.substring(0,end_of_name) + "  </title>\n</head>\n<body>\n");
 
         Message msg =  messages.remove(0);
-        ListObjectsV2Result texts = s3.listObjectsV2(bucket_name);
+//        ListObjectsV2Result texts = s3.listObjectsV2(bucket_name+ "/"+local_app_name);
+        ListObjectsV2Result texts = s3.listObjectsV2(bucket_name,local_app_name+ "/");
         List<S3ObjectSummary> summaryList = texts.getObjectSummaries();
+        summaryList = summaryList.subList(1, summaryList.size());
+
         for (S3ObjectSummary summary: summaryList) {
             String key = summary.getKey();
             System.out.println("summary list key : " + key);
@@ -224,21 +235,26 @@ public class local_application {
 
                 BufferedReader reader = new BufferedReader(new InputStreamReader(object_content));
 
-                String line = null;
+                String line;
 
-                fileWriter.write("<p>\n<img src=\""+key.substring(0,key.length()-4) + "\">\n");
-                StringBuilder object_body= new StringBuilder();
-                int bodies = 1;
+                int start_of_url = local_app_name.length()+1;
+                int end_of_url = key.length()-4;
+                fileWriter.write("<p>\n<img src=\""+key.substring(start_of_url,end_of_url) + "\">\n");
+//                StringBuilder object_body= new StringBuilder();
+//                int bodies = 1;
                 while ((line = reader.readLine()) != null){
-                    object_body.append(line);
-                    object_body.append("\n");
-                    System.out.println("number of while loops : " + bodies);
-                    bodies++;
+//                    object_body.append(line).append("\n");
+//                    object_body.append("\n");
+                    fileWriter.write("<br>" + line);
+
+
+//                    System.out.println("number of while loops : " + bodies);
+//                    bodies++;
                 }
 
 
 
-                fileWriter.write("<br>\n\"" + object_body + "\"\n</p>\n");
+                fileWriter.write("</p>\n");
 
 
             }
@@ -254,18 +270,8 @@ public class local_application {
         fileWriter.close();
 
 
-//        GetObjectRequest object_request = new GetObjectRequest(bucket_name,messages.get(0).getBody());
-//
-//        S3Object o = s3.getObject(object_request);
-//        S3ObjectInputStream object_content = o.getObjectContent();
 
-
-//        Map<String,String> attributes =  messages.get(0).getAttributes();
-//        if (attributes.containsKey("done task")){
-
-
-
-        if(args.length > 4 && args[4].equals("terminate")) {
+        if(args.length > 6 && args[6].equals("terminate")) {
             SendMessageRequest terminate_request = new SendMessageRequest()
                     .withQueueUrl(local_to_managerSQS)
                     .withMessageBody("terminate");
@@ -278,6 +284,13 @@ public class local_application {
 //            TODO check Qs - open manager if we no manager is up ==> tags
 //            TODO response
 //            TODO terminate works etc .....
+
+
+
+
+//
+        sqs.deleteMessage(manager_to_localSQS,msg.getReceiptHandle());
+        sqs.deleteQueue(manager_to_localSQS);
     }
 
 }

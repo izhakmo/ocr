@@ -267,7 +267,7 @@ public class Manager {
 
                 }
 
-                tasks_map.put(local_app_name,url_number+1);
+                tasks_map.put(local_app_name,url_number);
                 System.out.println("task added to map :\n key- " + local_app_name + "\nvalue- "+ url_number);
 
 
@@ -302,14 +302,29 @@ public class Manager {
 
                 if(number_of_workers_to_create >0) {
 
+                    IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
+                            .withName("worker_and_sons");
 
+//                    RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+//                    runInstancesRequest.withImageId("ami-04d29b6f966df1537")
+//                            .withInstanceType(InstanceType.T2Micro)
+//                            .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
+//                            .withKeyName(key_pair_string)  //TODO ?????
+//                            .withSecurityGroupIds("sg-0d23010af4dee7fa3")
+//                            .withTagSpecifications(tag_specification);
+
+
+
+//                    TODO this is not a todo
+//                      its omer's image and securityGroups
                     RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-                    runInstancesRequest.withImageId("ami-04d29b6f966df1537")
+                    runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
                             .withInstanceType(InstanceType.T2Micro)
                             .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
                             .withKeyName(key_pair_string)  //TODO ?????
                             .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-                            .withTagSpecifications(tag_specification);
+                            .withTagSpecifications(tag_specification)
+                            .withIamInstanceProfile(spec);
 
 
                     RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
