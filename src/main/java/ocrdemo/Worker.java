@@ -56,13 +56,15 @@ public class Worker {
                 File file = new File(file_to_upload_to_s3);
                 System.out.println("file created" + file_to_upload_to_s3);
                 try {
-                    FileUtils.copyURLToFile(new URL(url), file);
+                    FileUtils.copyURLToFile(new URL(url), file,5000,5000);
                     String ocr_output = null;
                     try {
                         ocr_output = img_ocr_object.doOCR(file);
                     } catch (TesseractException e) {
                         System.out.println(ocr_fail_counter + ". ocr failed");
                         ocr_fail_counter++;
+
+                        ocr_output = url + ": ocr failed";
                     }
                     if (ocr_output != null) {
                         String path_s3  = folder_name + "/" +file_to_upload_to_s3;
@@ -77,19 +79,19 @@ public class Worker {
 
 
                         System.out.println("path_s3: " + path_s3+ ".");
-                        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName ,path_s3 , file);
+//                        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName ,path_s3 , file);
                         PutObjectRequest putObjectRequest_txt = new PutObjectRequest(bucketName ,txt_path_s3 , txt_file);
 
 //                        ObjectMetadata metadata = new ObjectMetadata();
 //                        metadata.addUserMetadata("OCR", ocr_output);
 //                        putObjectRequest.setMetadata(metadata);
-                        s3.putObject(putObjectRequest);
+//                        s3.putObject(putObjectRequest);
                         s3.putObject(putObjectRequest_txt);
 
                         System.out.println(url_number + ". ocr_output:" + ocr_output);
                         SendMessageRequest send_msg_request = new SendMessageRequest()
                                 .withQueueUrl(worker_to_manager_queue)
-                                .withMessageBody(path_s3);
+                                .withMessageBody(folder_name);
 
                         sqs.sendMessage(send_msg_request);
 
@@ -100,6 +102,10 @@ public class Worker {
                 }
                 catch (Exception e){
                     System.out.println("illegal url : " +  url );
+
+
+
+
                 }
 
 
@@ -114,8 +120,8 @@ public class Worker {
 //                        .withMessageBody(answer);
 //
 //               sqs.sendMessage(send_msg_request);
-               sqs.deleteMessage(manager_to_workers_queue,msg.getReceiptHandle());
-               file.delete();
+                sqs.deleteMessage(manager_to_workers_queue,msg.getReceiptHandle());
+                file.delete();
 
             }
 

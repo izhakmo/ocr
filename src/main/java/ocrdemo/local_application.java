@@ -15,8 +15,7 @@ import com.amazonaws.services.sqs.model.*;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 public class local_application {
@@ -125,8 +124,7 @@ public class local_application {
 
             CreateTagsResult tag_response = ec2.createTags(tag_request);
 
-            local_to_managerSQS = sqs.createQueue("local-to-manager-sqs" + managerID)
-                    .getQueueUrl();
+            local_to_managerSQS = sqs.createQueue("local-to-manager-sqs" + managerID).getQueueUrl();
 
             System.out.println("===================================== MANAGER CREATED =================================================");
         }
@@ -136,6 +134,7 @@ public class local_application {
 
             System.out.println("===================================== MANAGER IS ALREADY UP =====================================================");
         }
+
         String bucket_name = "manager-bucket-"+managerID;
         Bucket bucket =  s3.createBucket(bucket_name);
 
@@ -146,6 +145,10 @@ public class local_application {
 
         // Upload a file as a new object with ContentType and title specified.
         String local_app_name = "Izhak"+new Date().getTime();
+
+        String manager_to_localSQS = sqs.createQueue("manager-to-local-sqs" + local_app_name)
+                .getQueueUrl();
+
         String file_to_upload = "fileObjKeyName" + new Date().getTime() +" "+number_of_tasks_per_worker + " " + local_app_name;
         String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
 
@@ -169,26 +172,87 @@ public class local_application {
 //    }
 
 
-//        String local_to_managerSQS = sqs.createQueue("local-to-manager-sqs" + managerID)
-//                .getQueueUrl();
 
         System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
 
-//        String manager_to_local = sqs.createQueue("manager_to_local" + new Date().getTime())
-//                .getQueueUrl();
-
-//        MessageAttributeValue tasks_per_worker = new MessageAttributeValue().withDataType("String");
-//        tasks_per_worker.setStringValue(number_of_tasks_per_worker);
 
 
         SendMessageRequest send_msg_request = new SendMessageRequest()
                 .withQueueUrl(local_to_managerSQS)
                 .withMessageBody(file_to_upload);
-//                .addMessageAttributesEntry("number_of_tasks_per_worker",tasks_per_worker);
 
         sqs.sendMessage(send_msg_request);
 
-//        List<Message> messages = sqs.receiveMessage(manager_to_local).getMessages();
+
+//        TODO wait until we get a msg and then process it
+        ReceiveMessageRequest task_is_done_msg_request = new ReceiveMessageRequest(manager_to_localSQS);
+        task_is_done_msg_request.withWaitTimeSeconds(20);
+
+        List<Message> messages = sqs.receiveMessage(task_is_done_msg_request).getMessages();
+        int msg_not_receive_counter = 1;
+
+//        task is not done yet
+        while(messages.size() == 0 ){
+            messages = sqs.receiveMessage(task_is_done_msg_request).getMessages();
+            System.out.println("msg_not_receive_counter: "+ msg_not_receive_counter);
+            msg_not_receive_counter++;
+
+        }
+
+//        TODO html
+        System.out.println("============================== TODO html ==================================== ");
+        String output_file_name = "output" + new Date().getTime() + ".html";
+        int end_of_name = output_file_name.length()-5;
+
+        File output_file = new File(output_file_name);
+        FileWriter fileWriter = new FileWriter(output_file_name);
+        fileWriter.write("<html>\n<head>\n<title>" + output_file_name.substring(0,end_of_name) + "  </title>\n</head>\n<body>\n");
+
+        Message msg =  messages.remove(0);
+        ListObjectsV2Result texts = s3.listObjectsV2(bucket_name);
+        List<S3ObjectSummary> summaryList = texts.getObjectSummaries();
+        for (S3ObjectSummary summary: summaryList) {
+            String key = summary.getKey();
+            System.out.println("summary list key : " + key);
+
+
+            try {
+                S3Object o = s3.getObject(bucket_name, key);
+
+                S3ObjectInputStream object_content = o.getObjectContent();
+                System.out.println("object received ");
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(object_content));
+
+                String line = null;
+
+                fileWriter.write("<p>\n<img src=\""+key.substring(0,key.length()-4) + "\">\n");
+                StringBuilder object_body= new StringBuilder();
+                int bodies = 1;
+                while ((line = reader.readLine()) != null){
+                    object_body.append(line);
+                    object_body.append("\n");
+                    System.out.println("number of while loops : " + bodies);
+                    bodies++;
+                }
+
+
+
+                fileWriter.write("<br>\n\"" + object_body + "\"\n</p>\n");
+
+
+            }
+            catch (Exception e){
+                e.printStackTrace();
+            }
+
+
+
+        }
+
+        fileWriter.write("</body>\n</html>");
+        fileWriter.close();
+
 
 //        GetObjectRequest object_request = new GetObjectRequest(bucket_name,messages.get(0).getBody());
 //

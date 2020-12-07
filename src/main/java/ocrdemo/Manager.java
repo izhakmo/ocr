@@ -13,10 +13,7 @@ import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class Manager {
 
@@ -85,78 +82,7 @@ public class Manager {
         }
     }
 
-    public static String getManager_to_WorkerSQS(AmazonSQS sqs, AmazonEC2 ec2){
-        String manager_to_workers_queue;
-        try {
-            manager_to_workers_queue = sqs.getQueueUrl("manager"+local_application.GetManager(ec2) + "_to_workers").getQueueUrl();
-        }
-        catch (QueueDoesNotExistException e){
-            manager_to_workers_queue = sqs.createQueue("manager"+local_application.GetManager(ec2) + "_to_workers").getQueueUrl();
-        }
-        return manager_to_workers_queue;
-    }
-
-    public static String getWorker_to_ManagerSQS(AmazonSQS sqs, AmazonEC2 ec2){
-        String worker_to_manager_queue;
-        try {
-            worker_to_manager_queue = sqs.getQueueUrl("worker_to_manager" + local_application.GetManager(ec2)).getQueueUrl();
-        }
-        catch (QueueDoesNotExistException e){
-            worker_to_manager_queue = sqs.createQueue("worker_to_manager" + local_application.GetManager(ec2)).getQueueUrl();
-        }
-        return worker_to_manager_queue;
-    }
-
-    public static void createFolder(String bucketName, String folderName, AmazonS3 client) {
-        // create meta-data for your folder and set content-length to 0
-        ObjectMetadata metadata = new ObjectMetadata();
-        metadata.setContentLength(0);
-
-        // create empty content
-        InputStream emptyContent = new ByteArrayInputStream(new byte[0]);
-
-        // create a PutObjectRequest passing the folder name suffixed by /
-        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName,
-                folderName + "/", emptyContent, metadata);
-
-        // send request to S3 to create folder
-        client.putObject(putObjectRequest);
-    }
-
-    public static void main(String[] args) throws IOException {
-        AmazonS3 s3 = local_application.s3;
-        AmazonEC2 ec2 = local_application.ec2;
-        AmazonSQS sqs = local_application.sqs;
-        String managerID = local_application.GetManager(ec2);
-
-        System.out.println("managerID: "+ managerID);
-
-        String local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
-
-        String bucketName = "manager-bucket-"+managerID;
-
-        List<Message> messages = sqs.receiveMessage(local_to_managerSQS).getMessages();
-        int msg_to_manager_Counter = 1;
-        int msg_to_workers_queue_counter = 0;
-
-
-        String key_pair_string = "key"+new Date().getTime();
-        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
-        createKeyPairRequest.withKeyName(key_pair_string);
-
-        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
-
-        KeyPair keyPair = new KeyPair();
-        keyPair = createKeyPairResult.getKeyPair();
-
-
-
-        String manager_to_workers_queue = getManager_to_WorkerSQS(sqs,ec2);
-
-
-
-
-
+    public static List<String>getWorkers_list(AmazonEC2 ec2) {
         List<String> valuesT1 = new ArrayList<>();
         valuesT1.add("worker");
         List<String> valuesT2 = new ArrayList<>();
@@ -185,7 +111,99 @@ public class Manager {
             }
         }
 
+        return active_workersID;
+    }
+
+    public static String getManager_to_WorkerSQS(AmazonSQS sqs, AmazonEC2 ec2){
+        String manager_to_workers_queue;
+        try {
+            manager_to_workers_queue = sqs.getQueueUrl("manager"+local_application.GetManager(ec2) + "_to_workers").getQueueUrl();
+        }
+        catch (QueueDoesNotExistException e){
+            manager_to_workers_queue = sqs.createQueue("manager"+local_application.GetManager(ec2) + "_to_workers").getQueueUrl();
+        }
+        return manager_to_workers_queue;
+    }
+
+    public static String getWorker_to_ManagerSQS(AmazonSQS sqs, AmazonEC2 ec2){
+        String worker_to_manager_queue;
+        try {
+            worker_to_manager_queue = sqs.getQueueUrl("worker_to_manager" + local_application.GetManager(ec2)).getQueueUrl();
+        }
+        catch (QueueDoesNotExistException e){
+            worker_to_manager_queue = sqs.createQueue("worker_to_manager" + local_application.GetManager(ec2)).getQueueUrl();
+        }
+        return worker_to_manager_queue;
+    }
+
+    public static String getManager_to_Local_appSQS(AmazonSQS sqs, String local_app_name){
+        return sqs.getQueueUrl("manager-to-local-sqs" + local_app_name).getQueueUrl();
+    }
+
+    public void send_done_task_msg_to_local_app(String local_app_name){
+
+    }
+
+    public static void createFolder(String bucketName, String folderName, AmazonS3 client) {
+        // create meta-data for your folder and set content-length to 0
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(0);
+
+        // create empty content
+        InputStream emptyContent = new ByteArrayInputStream(new byte[0]);
+
+        // create a PutObjectRequest passing the folder name suffixed by /
+        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName,
+                folderName + "/", emptyContent, metadata);
+
+        // send request to S3 to create folder
+        client.putObject(putObjectRequest);
+    }
+
+    public static void main(String[] args) throws IOException {
+        AmazonS3 s3 = local_application.s3;
+        AmazonEC2 ec2 = local_application.ec2;
+        AmazonSQS sqs = local_application.sqs;
+        String managerID = local_application.GetManager(ec2);
+        Map<String,Integer> tasks_map = new HashMap<>();
+
+
+
+
+        String local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
+
+        String worker_to_managerSQS = getWorker_to_ManagerSQS(sqs,ec2);
+
+        String bucketName = "manager-bucket-"+managerID;
+
+        List<Message> messages = sqs.receiveMessage(local_to_managerSQS).getMessages();
+        int msg_to_manager_Counter = 1;
+        int msg_to_workers_queue_counter = 0;
+
+
+        String key_pair_string = "key"+new Date().getTime();
+        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
+        createKeyPairRequest.withKeyName(key_pair_string);
+
+        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
+
+        KeyPair keyPair = new KeyPair();
+        keyPair = createKeyPairResult.getKeyPair();
+
+
+
+        String manager_to_workers_queue = getManager_to_WorkerSQS(sqs,ec2);
+
+
+
+        List<String> active_workersID = getWorkers_list(ec2);
+
+
         int number_of_active_workers = active_workersID.size();
+
+
+
+
         System.out.println("number_of_active_workers: "+number_of_active_workers);
 
 
@@ -193,8 +211,9 @@ public class Manager {
         worker_tag.setKey("worker");
         worker_tag.setValue("worker");
 
-        CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(worker_tag);
 
+//TODO i think these two lines are useless
+        CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(worker_tag);
         tagsRequest.withTags(worker_tag);
 
         TagSpecification tag_specification = new TagSpecification();
@@ -232,21 +251,27 @@ public class Manager {
                 String line = null;
 
 
-//                send the url messages ang count them
+//                send the url messages and count them
                 while ((line = reader.readLine()) != null) {
                     if(line.length()==0)    {  continue; }
 
-                    System.out.println(line);
+//                    System.out.println(line);
                     SendMessageRequest url_msg_request_to_worker = new SendMessageRequest()
                             .withQueueUrl(manager_to_workers_queue)
                             .withMessageBody( local_app_name + " " + line + " " + url_number );
-                    url_number++;
 
                     sqs.sendMessage(url_msg_request_to_worker);
 
+                    url_number++;
                     msg_to_workers_queue_counter++;
 
                 }
+
+                tasks_map.put(local_app_name,url_number+1);
+                System.out.println("task added to map :\n key- " + local_app_name + "\nvalue- "+ url_number);
+
+
+
                 int number_of_workers_needed_for_task = (msg_to_workers_queue_counter/ Integer.parseInt(number_of_messages_per_worker))+1;
                 System.out.println(msg_to_manager_Counter+ ". number_of_workers_needed_for_task: "+ number_of_workers_needed_for_task);
 
@@ -307,7 +332,18 @@ public class Manager {
                             .withTags(worker_tag)
                             .withResources(workersID);
 
-                    CreateTagsResult tag_response = ec2.createTags(tag_request);
+//                    try until success
+                    do{
+                        try {
+                            CreateTagsResult tag_response = ec2.createTags(tag_request);
+                        }
+                        catch (AmazonEC2Exception e){
+                            System.out.println("AmazonEC2Exception occurred while trying to tag the workers" );
+                            continue;
+                        }
+                        break;
+                    } while(true);
+
                 }   //end of if - run_workers
 
 
@@ -328,16 +364,61 @@ public class Manager {
 
             msg_to_workers_queue_counter = 0;
         }
-//        s3.getbucket
-//        start manager etc
-//        get local_to_manager queue
-//        get manager_to_local queue
-//        download the url file from s3
-//        create a message for each url and counter++
 
-//        create works accordingly
 
-//        check works_to_manager que for messages
+//        listening to workers LOOP
+        boolean finish = false;
+        while (! finish) {
+
+            messages = sqs.receiveMessage(worker_to_managerSQS).getMessages();
+            while (!messages.isEmpty()) {
+                while (!messages.isEmpty()) {
+                    Message msg = messages.remove(0);
+                    String msgBody = msg.getBody();
+                    String[] msg_splitted = msgBody.split(" ");
+                    String key = msg_splitted[0];
+                    Integer value = tasks_map.get(key);
+                    if(value != null){
+                        value --;
+                    }
+                    else{
+                        System.out.println("value is null" );
+                    }
+
+
+                    System.out.println("while loop worker_to_managerSQS \n value : " + value);
+
+//                send DONE TASK msg to local
+                    if (value == 0) {
+                        String manager_to_Local_appSQS = getManager_to_Local_appSQS(sqs, key);
+                        SendMessageRequest task_is_done_request = new SendMessageRequest()
+                                .withQueueUrl(manager_to_Local_appSQS)
+                                .withMessageBody(key + " " + "is_done");
+
+                        sqs.sendMessage(task_is_done_request);
+
+                        tasks_map.remove(key);
+                        System.out.println("task: " + key + " is done");
+                        finish=true;
+
+
+                    } else {
+                        tasks_map.replace(key, value);
+                        System.out.println("task: " + key + " new value - " + value);
+                    }
+                    sqs.deleteMessage(worker_to_managerSQS,msg.getReceiptHandle());
+                }
+                messages = sqs.receiveMessage(worker_to_managerSQS).getMessages();
+
+
+            }
+
+        }
+
+        System.out.println("manager is done");
+
+
+//        check workers_to_manager que for messages
 //        when a message "done OCR task" received
 
     }
