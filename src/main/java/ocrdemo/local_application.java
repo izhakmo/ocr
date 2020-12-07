@@ -56,7 +56,7 @@ public class local_application {
 
             for (Instance instance : instances) {
 
-                System.out.println(instance.getInstanceId());
+//                System.out.println(instance.getInstanceId());
                 manager = instance.getInstanceId();
                 System.out.println("manager: "+ manager);
 
@@ -145,7 +145,7 @@ public class local_application {
         String number_of_tasks_per_worker =  "5";
 
         // Upload a file as a new object with ContentType and title specified.
-        String local_app_name = "Izhak";
+        String local_app_name = "Izhak"+new Date().getTime();
         String file_to_upload = "fileObjKeyName" + new Date().getTime() +" "+number_of_tasks_per_worker + " " + local_app_name;
         String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
 

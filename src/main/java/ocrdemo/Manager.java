@@ -3,10 +3,10 @@ package ocrdemo;
 
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.*;
+import com.amazonaws.services.ec2.model.Filter;
+import com.amazonaws.services.ec2.model.Tag;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.GetObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
-import com.amazonaws.services.s3.model.S3ObjectInputStream;
+import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
@@ -107,7 +107,21 @@ public class Manager {
         return worker_to_manager_queue;
     }
 
+    public static void createFolder(String bucketName, String folderName, AmazonS3 client) {
+        // create meta-data for your folder and set content-length to 0
+        ObjectMetadata metadata = new ObjectMetadata();
+        metadata.setContentLength(0);
 
+        // create empty content
+        InputStream emptyContent = new ByteArrayInputStream(new byte[0]);
+
+        // create a PutObjectRequest passing the folder name suffixed by /
+        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName,
+                folderName + "/", emptyContent, metadata);
+
+        // send request to S3 to create folder
+        client.putObject(putObjectRequest);
+    }
 
     public static void main(String[] args) throws IOException {
         AmazonS3 s3 = local_application.s3;
@@ -198,6 +212,11 @@ public class Manager {
                 String msgBody = msg.getBody();
                 String [] msg_splitted =msgBody.split(" ");
                 String number_of_messages_per_worker = msg_splitted[1];
+                String local_app_name = msg_splitted[2];
+
+                createFolder(bucketName,local_app_name,s3);
+
+                int url_number = 0;
                 GetObjectRequest object_request = new GetObjectRequest(bucketName,msgBody);
 
                 System.out.println("number_of_messages_per_worker: "+number_of_messages_per_worker);
@@ -220,7 +239,8 @@ public class Manager {
                     System.out.println(line);
                     SendMessageRequest url_msg_request_to_worker = new SendMessageRequest()
                             .withQueueUrl(manager_to_workers_queue)
-                            .withMessageBody(line);
+                            .withMessageBody( local_app_name + " " + line + " " + url_number );
+                    url_number++;
 
                     sqs.sendMessage(url_msg_request_to_worker);
 
@@ -270,7 +290,7 @@ public class Manager {
                     RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
                     List<Instance> worker_instances = runInstancesResult.getReservation().getInstances();
 
-
+                    //TODO make it a function called get workers ID as array
                     ArrayList<String> workersID = new ArrayList<>();
                     int number_of_workers_to_print = 1;
                     while (!worker_instances.isEmpty()) {
@@ -280,7 +300,6 @@ public class Manager {
 
                         System.out.println("number_of_workers_to_print: " + number_of_workers_to_print);
                         number_of_workers_to_print++;
-
 
                     }
 
