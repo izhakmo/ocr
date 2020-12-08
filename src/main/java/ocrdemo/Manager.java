@@ -21,6 +21,12 @@ import java.util.*;
 
 public class Manager {
 
+    private static boolean terminate = false;
+
+//    public static boolean get_terminate(){return terminate;}
+
+//    public static void set_terminate(boolean ter) {terminate = ter;}
+
 
     public static String getManager(AmazonEC2 ec2){
         String manager = null;
@@ -213,7 +219,7 @@ public class Manager {
 
         Map<String,Integer> tasks_map = new HashMap<>();
 
-        boolean terminate = false;
+//        boolean terminate = false;
 
 
 
@@ -224,7 +230,7 @@ public class Manager {
 
 
         List<Message> messages_from_local;
-        List<Message> messages_from_workers;
+
         int msg_to_manager_Counter = 1;
         int msg_to_workers_queue_counter = 0;
 
@@ -268,6 +274,89 @@ public class Manager {
         ReceiveMessageRequest msg_from_local = new ReceiveMessageRequest()
                 .withMaxNumberOfMessages(1)
                 .withQueueUrl(local_to_managerSQS);
+
+
+
+        new Thread(() -> {
+            List<Message> messages_from_workers = null;
+            while (true) {
+                try {
+                    messages_from_workers = sqs.receiveMessage(worker_to_managerSQS).getMessages();
+                }
+                catch(QueueDoesNotExistException e){
+                    System.out.println("manager is terminating");
+                    System.exit(0);
+                }
+                while (!messages_from_workers.isEmpty()) {
+                    while (!messages_from_workers.isEmpty()) {
+                        Message msg = messages_from_workers.remove(0);
+                        String msgBody = msg.getBody();
+                        String[] msg_splitted = msgBody.split(" ");
+                        String key = msg_splitted[0];
+                        Integer value = tasks_map.get(key);
+                        if (value != null) {
+                            value--;
+
+                            if (value == 0) {
+                                String manager_to_Local_appSQS = getManager_to_Local_appSQS(sqs, key);
+                                SendMessageRequest task_is_done_request = new SendMessageRequest()
+                                        .withQueueUrl(manager_to_Local_appSQS)
+                                        .withMessageBody(key + " " + "is_done");
+
+                                sqs.sendMessage(task_is_done_request);
+
+                                tasks_map.remove(key);
+                                System.out.println("task: " + key + " is done");
+//                                finish = true;
+
+
+                            } else {
+                                tasks_map.replace(key, value);
+                                System.out.println("task: " + key + " new value - " + value);
+                            }
+
+
+                        } else {
+                            System.out.println("value is null");
+                        }
+
+
+                        System.out.println("while loop worker_to_managerSQS \n value : " + value);
+
+//                send DONE TASK msg to local
+
+                        sqs.deleteMessage(worker_to_managerSQS, msg.getReceiptHandle());
+                    }
+                    messages_from_workers = sqs.receiveMessage(worker_to_managerSQS).getMessages();
+
+
+                }
+
+//                if(tasks_map.isEmpty()){
+//                    break;
+//                }
+
+
+                if (tasks_map.isEmpty() && terminate) {
+                    TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(getWorkers_list(ec2));
+                    ec2.terminateInstances(terminateInstancesRequest);
+                    sqs.deleteQueue(worker_to_managerSQS);
+                    sqs.deleteQueue(manager_to_workers_queue);
+                    ArrayList<String> manager_at_list = new ArrayList<>();
+                    manager_at_list.add(getManager(ec2));
+                    TerminateInstancesRequest terminateInstancesRequest_manager = new TerminateInstancesRequest(manager_at_list);
+                    System.out.println("manager is done");
+
+                    ec2.terminateInstances(terminateInstancesRequest_manager);
+
+
+
+                }
+
+            }
+        }).start();
+
+
 
         while(true) {
             try {
@@ -485,79 +574,13 @@ public class Manager {
 
 
 //        listening to workers LOOP
-            boolean finish = false;
-            while (!finish) {
+//            boolean finish = false;
+//            while (!finish) {
 
-                messages_from_workers = sqs.receiveMessage(worker_to_managerSQS).getMessages();
-                while (!messages_from_workers.isEmpty()) {
-                    while (!messages_from_workers.isEmpty()) {
-                        Message msg = messages_from_workers.remove(0);
-                        String msgBody = msg.getBody();
-                        String[] msg_splitted = msgBody.split(" ");
-                        String key = msg_splitted[0];
-                        Integer value = tasks_map.get(key);
-                        if (value != null) {
-                            value--;
-
-                            if (value == 0) {
-                                String manager_to_Local_appSQS = getManager_to_Local_appSQS(sqs, key);
-                                SendMessageRequest task_is_done_request = new SendMessageRequest()
-                                        .withQueueUrl(manager_to_Local_appSQS)
-                                        .withMessageBody(key + " " + "is_done");
-
-                                sqs.sendMessage(task_is_done_request);
-
-                                tasks_map.remove(key);
-                                System.out.println("task: " + key + " is done");
-                                finish = true;
-
-
-                            } else {
-                                tasks_map.replace(key, value);
-                                System.out.println("task: " + key + " new value - " + value);
-                            }
-
-
-                        } else {
-                            System.out.println("value is null");
-                        }
-
-
-                        System.out.println("while loop worker_to_managerSQS \n value : " + value);
-
-//                send DONE TASK msg to local
-
-                        sqs.deleteMessage(worker_to_managerSQS, msg.getReceiptHandle());
-                    }
-                    messages_from_workers = sqs.receiveMessage(worker_to_managerSQS).getMessages();
-
-
-                }
-
-                if(tasks_map.isEmpty()){
-                    break;
-                }
-
-            }
-            if (terminate) {
-                TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(getWorkers_list(ec2));
-                ec2.terminateInstances(terminateInstancesRequest);
-                sqs.deleteQueue(worker_to_managerSQS);
-                sqs.deleteQueue(manager_to_workers_queue);
-
-                break;
-
-
-            }
 
         }
 
-        ArrayList<String> manager_at_list = new ArrayList<>();
-        manager_at_list.add(getManager(ec2));
-        TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(manager_at_list);
-        System.out.println("manager is done");
 
-        ec2.terminateInstances(terminateInstancesRequest);
 
 
 
