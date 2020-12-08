@@ -207,6 +207,9 @@ public class Manager {
         AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
         AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
         String managerID = getManager(ec2);
+        String ami = args[3];
+
+
         Map<String,Integer> tasks_map = new HashMap<>();
 
         boolean terminate = false;
@@ -292,6 +295,13 @@ public class Manager {
 
                         }
 
+                        String manager_to_Local_appSQS = getManager_to_Local_appSQS(sqs, local_app_name);
+                        SendMessageRequest task_received = new SendMessageRequest()
+                                .withQueueUrl(manager_to_Local_appSQS)
+                                .withMessageBody(local_app_name + " massage received");
+
+                        sqs.sendMessage(task_received);
+
                         String bucketName = "bucket-" + local_app_name;
 
 
@@ -340,7 +350,13 @@ public class Manager {
 
 
 //                delete local_to_manager message
-                        sqs.deleteMessage(local_to_managerSQS, msg.getReceiptHandle());
+                        try {
+                            sqs.deleteMessage(local_to_managerSQS, msg.getReceiptHandle());
+                        }
+                        catch (QueueDoesNotExistException e){
+                            System.out.println("manager is terminating");
+
+                        }
 
 
                         int number_of_workers_to_create = number_of_workers_needed_for_task - number_of_active_workers;
@@ -374,16 +390,25 @@ public class Manager {
 //                            .withTagSpecifications(tag_specification);
 
 
+
+
+                            StringBuilder str = new StringBuilder();
+                            str.append("#!/bin/sh");
+                            str.append("\n");
+                            str.append("java -jar /home/ubuntu/WorkerApp.jar");
+                            String userData = str.toString();
+
 //                    TODO this is not a todo
 //                      its omer's image and securityGroups
                             RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-                            runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
+                            runInstancesRequest.withImageId(ami)
                                     .withInstanceType(InstanceType.T2Micro)
                                     .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
                                     .withKeyName(key_pair_string)  //TODO ?????
                                     .withSecurityGroupIds("sg-0d23010af4dee7fa3")
                                     .withTagSpecifications(tag_specification)
-                                    .withIamInstanceProfile(spec);
+                                    .withIamInstanceProfile(spec)
+                                    .withUserData(userData);
 
 
                             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
@@ -513,7 +538,7 @@ public class Manager {
             if (terminate) {
                 TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(getWorkers_list(ec2));
                 ec2.terminateInstances(terminateInstancesRequest);
-                sqs.deleteQueue(local_to_managerSQS);
+//                sqs.deleteQueue(local_to_managerSQS);
                 sqs.deleteQueue(worker_to_managerSQS);
                 sqs.deleteQueue(manager_to_workers_queue);
 

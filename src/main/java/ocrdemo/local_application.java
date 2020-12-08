@@ -107,6 +107,14 @@ public class local_application {
 //                    .withTagSpecifications(tag_specification);
 
 
+            StringBuilder str = new StringBuilder();
+            str.append("#!/bin/sh");
+            str.append("\n");
+            str.append("java -jar /home/ubuntu/ManagerApp.jar ami-0b43de3e8b3bb4e5d");
+            String userData = str.toString();
+
+
+
 //                    TODO this is not a todo
 //                      its omer's image and securityGroups
             RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
@@ -116,7 +124,8 @@ public class local_application {
                     .withKeyName(key_pair_string)  //TODO ?????
                     .withSecurityGroupIds("sg-0d23010af4dee7fa3")
                     .withTagSpecifications(tag_specification)
-                    .withIamInstanceProfile(spec);
+                    .withIamInstanceProfile(spec)
+                    .withUserData(userData);
 
 
             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
@@ -173,27 +182,37 @@ public class local_application {
         putObjectRequest.setMetadata(metadata);
         s3.putObject(putObjectRequest);
 
-//    } catch (AmazonServiceException e) {
-//        // The call was transmitted successfully, but Amazon S3 couldn't process
-//        // it, so it returned an error response.
-//        e.printStackTrace();
-//    } catch (SdkClientException e) {
-//        // Amazon S3 couldn't be contacted for a response, or the client
-//        // couldn't parse the response from Amazon S3.
-//        e.printStackTrace();
-//    }
-
-
-
-//        System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
-
-
 
         SendMessageRequest send_msg_request = new SendMessageRequest()
                 .withQueueUrl(local_to_managerSQS)
                 .withMessageBody(file_to_upload);
 
-        sqs.sendMessage(send_msg_request);
+        try {
+            sqs.sendMessage(send_msg_request);
+            ReceiveMessageRequest task_is_done_msg_request = new ReceiveMessageRequest(manager_to_localSQS);
+            task_is_done_msg_request.withWaitTimeSeconds(20);
+
+            List<Message> messages = sqs.receiveMessage(task_is_done_msg_request).getMessages();
+            while (messages.size() ==0){
+                messages = sqs.receiveMessage(task_is_done_msg_request).getMessages();
+            }
+
+            Message acc = messages.get(0);
+            System.out.println(acc.getBody());
+            System.out.println("========================================================================");
+            sqs.deleteMessage(manager_to_localSQS,acc.getReceiptHandle());
+
+        }
+        catch(QueueDoesNotExistException e){
+            System.out.println("manager is terminating, please try again later");
+            sqs.deleteQueue(manager_to_localSQS);
+
+//        delete folder, txt file and bucket
+            s3.deleteObject(bucket_name,file_to_upload);
+            s3.deleteBucket(bucket_name);
+            System.exit(0);
+
+        }
 
 
 //        wait until we get a msg and then process it
