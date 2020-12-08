@@ -219,7 +219,7 @@ public class Manager {
         String worker_to_managerSQS = getWorker_to_ManagerSQS(sqs,ec2);
 
 
-        List<Message> messages = sqs.receiveMessage(local_to_managerSQS).getMessages();
+        List<Message> messages_from_local = sqs.receiveMessage(local_to_managerSQS).getMessages();
         int msg_to_manager_Counter = 1;
         int msg_to_workers_queue_counter = 0;
 
@@ -262,11 +262,11 @@ public class Manager {
 
 
         while(true) {
-            while (!messages.isEmpty()) {
-                while (!messages.isEmpty()) {
+            while (!messages_from_local.isEmpty()) {
+                while (!messages_from_local.isEmpty()) {
 
 
-                    Message msg = messages.remove(0);
+                    Message msg = messages_from_local.remove(0);
 
                     String msgBody = msg.getBody();
                     String[] msg_splitted = msgBody.split(" ");
@@ -439,7 +439,7 @@ public class Manager {
                 if (terminate) {
                     break;
                 }
-                messages = sqs.receiveMessage(local_to_managerSQS).getMessages();
+                messages_from_local = sqs.receiveMessage(local_to_managerSQS).getMessages();
 
 
                 msg_to_workers_queue_counter = 0;
@@ -450,7 +450,7 @@ public class Manager {
             boolean finish = false;
             while (!finish) {
 
-                messages = sqs.receiveMessage(worker_to_managerSQS).getMessages();
+                List<Message> messages = sqs.receiveMessage(worker_to_managerSQS).getMessages();
                 while (!messages.isEmpty()) {
                     while (!messages.isEmpty()) {
                         Message msg = messages.remove(0);
