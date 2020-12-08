@@ -2,12 +2,15 @@ package ocrdemo;
 
 
 import com.amazonaws.services.ec2.AmazonEC2;
+import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
 import com.amazonaws.services.ec2.model.Filter;
 import com.amazonaws.services.ec2.model.Tag;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
@@ -16,6 +19,45 @@ import java.io.*;
 import java.util.*;
 
 public class Manager {
+
+
+    public static String getManager(AmazonEC2 ec2){
+        String manager = null;
+
+
+//      continue with key after we got the manager
+
+
+        List<String> valuesT1 = new ArrayList<>();
+        valuesT1.add("manager");
+        List<String> valuesT2 = new ArrayList<>();
+        valuesT2.add("running");
+        valuesT2.add("pending");
+        Filter filter_manager = new Filter("tag:manager", valuesT1);
+        Filter filter_running = new Filter("instance-state-name",valuesT2);
+//        Filter filter_running = new Filter("tag:manager", valuesT1);
+
+        DescribeInstancesRequest request = new DescribeInstancesRequest().withFilters(filter_manager,filter_running);
+
+
+        DescribeInstancesResult result = ec2.describeInstances(request.withFilters(filter_manager,filter_running));
+
+        List<Reservation> reservations = result.getReservations();
+
+        for (Reservation reservation : reservations) {
+            List<Instance> instances = reservation.getInstances();
+
+            for (Instance instance : instances) {
+
+//                System.out.println(instance.getInstanceId());
+                manager = instance.getInstanceId();
+                System.out.println("manager: "+ manager);
+
+
+            }
+        }
+        return manager;
+    }
 
     private static void displayTextInputStream(InputStream input) throws IOException {
         // Read the text input stream one line at a time and display each line.
@@ -161,11 +203,13 @@ public class Manager {
     }
 
     public static void main(String[] args) throws IOException {
-        AmazonS3 s3 = local_application.s3;
-        AmazonEC2 ec2 = local_application.ec2;
-        AmazonSQS sqs = local_application.sqs;
+        AmazonS3 s3 = AmazonS3ClientBuilder.defaultClient();
+        AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
+        AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
         String managerID = local_application.GetManager(ec2);
         Map<String,Integer> tasks_map = new HashMap<>();
+
+        boolean terminate = false;
 
 
 
@@ -174,7 +218,6 @@ public class Manager {
 
         String worker_to_managerSQS = getWorker_to_ManagerSQS(sqs,ec2);
 
-        String bucketName = "manager-bucket-"+managerID;
 
         List<Message> messages = sqs.receiveMessage(local_to_managerSQS).getMessages();
         int msg_to_manager_Counter = 1;
@@ -212,98 +255,114 @@ public class Manager {
         worker_tag.setValue("worker");
 
 
-//TODO i think these two lines are useless
         CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(worker_tag);
         tagsRequest.withTags(worker_tag);
 
         TagSpecification tag_specification = new TagSpecification();
 
 
-
-        while (! messages.isEmpty()) {
-            while (! messages.isEmpty()) {
-
-
+        while(true) {
+            while (!messages.isEmpty()) {
+                while (!messages.isEmpty()) {
 
 
-                Message msg = messages.remove(0);
+                    Message msg = messages.remove(0);
 
-                String msgBody = msg.getBody();
-                String [] msg_splitted =msgBody.split(" ");
-                String number_of_messages_per_worker = msg_splitted[1];
-                String local_app_name = msg_splitted[2];
+                    String msgBody = msg.getBody();
+                    String[] msg_splitted = msgBody.split(" ");
+//                if(msgBody.equals("terminate")){
+//                    SendMessageRequest terminate_msg = new SendMessageRequest()
+//                            .withQueueUrl(manager_to_workers_queue)
+//                            .withMessageBody( "terminate" );
+//
+//                    for (int i = 0; i < number_of_active_workers ; i++) {
+//                        sqs.sendMessage(terminate_msg);
+//                    }
+//
+//
+//
+//
+//
+//                }
+                    String number_of_messages_per_worker = msg_splitted[1];
+                    String local_app_name = msg_splitted[2];
+                    String optional_terminate = msg_splitted[3];
+                    if (optional_terminate.equals("terminate")) {
+                        terminate = true;
+                    }
 
-                createFolder(bucketName,local_app_name,s3);
-
-                int url_number = 0;
-                GetObjectRequest object_request = new GetObjectRequest(bucketName,msgBody);
-
-                System.out.println("number_of_messages_per_worker: "+number_of_messages_per_worker);
+                    String bucketName = "bucket-" + local_app_name;
 
 
-                S3Object o = s3.getObject(object_request);
-                S3ObjectInputStream object_content = o.getObjectContent();
-                System.out.println(msg_to_manager_Counter+". msg_to_manager_Counter");
+                    createFolder(bucketName, local_app_name, s3);
+
+                    int url_number = 0;
+                    GetObjectRequest object_request = new GetObjectRequest(bucketName, msgBody);
+
+                    System.out.println("number_of_messages_per_worker: " + number_of_messages_per_worker);
+
+
+                    S3Object o = s3.getObject(object_request);
+                    S3ObjectInputStream object_content = o.getObjectContent();
+                    System.out.println(msg_to_manager_Counter + ". msg_to_manager_Counter");
 //                displayTextInputStream(object_content);
 
 
-                BufferedReader reader = new BufferedReader(new InputStreamReader(object_content));
-                String line = null;
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(object_content));
+                    String line;
 
 
 //                send the url messages and count them
-                while ((line = reader.readLine()) != null) {
-                    if(line.length()==0)    {  continue; }
+                    while ((line = reader.readLine()) != null) {
+                        if (line.length() == 0) {
+                            continue;
+                        }
 
 //                    System.out.println(line);
-                    SendMessageRequest url_msg_request_to_worker = new SendMessageRequest()
-                            .withQueueUrl(manager_to_workers_queue)
-                            .withMessageBody( local_app_name + " " + line + " " + url_number );
+                        SendMessageRequest url_msg_request_to_worker = new SendMessageRequest()
+                                .withQueueUrl(manager_to_workers_queue)
+                                .withMessageBody(local_app_name + " " + line + " " + url_number);
 
-                    sqs.sendMessage(url_msg_request_to_worker);
+                        sqs.sendMessage(url_msg_request_to_worker);
 
-                    url_number++;
-                    msg_to_workers_queue_counter++;
+                        url_number++;
+                        msg_to_workers_queue_counter++;
 
-                }
+                    }
 
-                tasks_map.put(local_app_name,url_number);
-                System.out.println("task added to map :\n key- " + local_app_name + "\nvalue- "+ url_number);
+                    tasks_map.put(local_app_name, url_number);
+                    System.out.println("task added to map :\n key- " + local_app_name + "\nvalue- " + url_number);
 
 
-
-                int number_of_workers_needed_for_task = (msg_to_workers_queue_counter/ Integer.parseInt(number_of_messages_per_worker))+1;
-                System.out.println(msg_to_manager_Counter+ ". number_of_workers_needed_for_task: "+ number_of_workers_needed_for_task);
-
+                    int number_of_workers_needed_for_task = (msg_to_workers_queue_counter / Integer.parseInt(number_of_messages_per_worker)) + 1;
+                    System.out.println(msg_to_manager_Counter + ". number_of_workers_needed_for_task: " + number_of_workers_needed_for_task);
 
 
 //                delete local_to_manager message
-                sqs.deleteMessage(local_to_managerSQS,msg.getReceiptHandle());
+                    sqs.deleteMessage(local_to_managerSQS, msg.getReceiptHandle());
 
 
-                int number_of_workers_to_create = number_of_workers_needed_for_task - number_of_active_workers;
+                    int number_of_workers_to_create = number_of_workers_needed_for_task - number_of_active_workers;
 
 
-                number_of_workers_to_create = Math.max(number_of_workers_to_create, 0);
+                    number_of_workers_to_create = Math.max(number_of_workers_to_create, 0);
 
 //                19 is the maximum if ec2 instances allowed in aws student permission
-                if((number_of_workers_to_create + number_of_active_workers) > 17){
-                    number_of_workers_to_create = 18 - number_of_active_workers;
-                    number_of_active_workers = 18;
+                    if ((number_of_workers_to_create + number_of_active_workers) > 17) {
+                        number_of_workers_to_create = 18 - number_of_active_workers;
+                        number_of_active_workers = 18;
 
-                }
-                else{
-                    number_of_active_workers += number_of_workers_to_create;
-                }
-
+                    } else {
+                        number_of_active_workers += number_of_workers_to_create;
+                    }
 
 
-                System.out.println("number_of_workers_to_create: "+ number_of_workers_to_create);
+                    System.out.println("number_of_workers_to_create: " + number_of_workers_to_create);
 
-                if(number_of_workers_to_create >0) {
+                    if (number_of_workers_to_create > 0) {
 
-                    IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
-                            .withName("worker_and_sons");
+                        IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
+                                .withName("worker_and_sons");
 
 //                    RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
 //                    runInstancesRequest.withImageId("ami-04d29b6f966df1537")
@@ -314,123 +373,151 @@ public class Manager {
 //                            .withTagSpecifications(tag_specification);
 
 
-
 //                    TODO this is not a todo
 //                      its omer's image and securityGroups
-                    RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-                    runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
-                            .withInstanceType(InstanceType.T2Micro)
-                            .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
-                            .withKeyName(key_pair_string)  //TODO ?????
-                            .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-                            .withTagSpecifications(tag_specification)
-                            .withIamInstanceProfile(spec);
+                        RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+                        runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
+                                .withInstanceType(InstanceType.T2Micro)
+                                .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
+                                .withKeyName(key_pair_string)  //TODO ?????
+                                .withSecurityGroupIds("sg-0d23010af4dee7fa3")
+                                .withTagSpecifications(tag_specification)
+                                .withIamInstanceProfile(spec);
 
 
-                    RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
-                    List<Instance> worker_instances = runInstancesResult.getReservation().getInstances();
+                        RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
+                        List<Instance> worker_instances = runInstancesResult.getReservation().getInstances();
 
-                    //TODO make it a function called get workers ID as array
-                    ArrayList<String> workersID = new ArrayList<>();
-                    int number_of_workers_to_print = 1;
-                    while (!worker_instances.isEmpty()) {
-                        workersID.add(worker_instances.remove(0).getInstanceId());
+                        //TODO make it a function called get workers ID as array
+                        ArrayList<String> workersID = new ArrayList<>();
+                        int number_of_workers_to_print = 1;
+                        while (!worker_instances.isEmpty()) {
+                            workersID.add(worker_instances.remove(0).getInstanceId());
 
 //                        workersID.add(worker_instances.get(0).getInstanceId());
 
-                        System.out.println("number_of_workers_to_print: " + number_of_workers_to_print);
-                        number_of_workers_to_print++;
+                            System.out.println("number_of_workers_to_print: " + number_of_workers_to_print);
+                            number_of_workers_to_print++;
 
-                    }
+                        }
 
-                    CreateTagsRequest tag_request = new CreateTagsRequest()
-                            .withTags(worker_tag)
-                            .withResources(workersID);
+                        CreateTagsRequest tag_request = new CreateTagsRequest()
+                                .withTags(worker_tag)
+                                .withResources(workersID);
 
 //                    try until success
-                    do{
-                        try {
-                            CreateTagsResult tag_response = ec2.createTags(tag_request);
-                        }
-                        catch (AmazonEC2Exception e){
-                            System.out.println("AmazonEC2Exception occurred while trying to tag the workers" );
-                            continue;
-                        }
-                        break;
-                    } while(true);
+                        do {
+                            try {
+                                CreateTagsResult tag_response = ec2.createTags(tag_request);
+                            } catch (AmazonEC2Exception e) {
+                                System.out.println("AmazonEC2Exception occurred while trying to tag the workers");
+                                continue;
+                            }
+                            break;
+                        } while (true);
 
-                }   //end of if - run_workers
-
-
-                System.out.println("msg_to_workers_queue_counter: "+ msg_to_workers_queue_counter);
+                    }   //end of if - run_workers
 
 
-                System.out.println(msg_to_manager_Counter + ". msgBody: " + msgBody);
-                msg_to_manager_Counter++;
+                    System.out.println("msg_to_workers_queue_counter: " + msg_to_workers_queue_counter);
+
+
+                    System.out.println(msg_to_manager_Counter + ". msgBody: " + msgBody);
+                    msg_to_manager_Counter++;
 
 //                File download_file_from_s3 =  new File(s3.getUrl(bucketName,msgBody).getFile());
-                System.out.println(msg_to_manager_Counter + ". File: "+ s3.getUrl(bucketName,msgBody).getFile());
+                    System.out.println(msg_to_manager_Counter + ". File: " + s3.getUrl(bucketName, msgBody).getFile());
 
 //                TODO check where should i reset the counter
+                    msg_to_workers_queue_counter = 0;
+
+                    if (terminate) {
+                        break;
+                    }
+
+                }
+                if (terminate) {
+                    break;
+                }
+                messages = sqs.receiveMessage(local_to_managerSQS).getMessages();
+
+
                 msg_to_workers_queue_counter = 0;
             }
-            messages = sqs.receiveMessage(local_to_managerSQS).getMessages();
-
-
-            msg_to_workers_queue_counter = 0;
-        }
 
 
 //        listening to workers LOOP
-        boolean finish = false;
-        while (! finish) {
+            boolean finish = false;
+            while (!finish) {
 
-            messages = sqs.receiveMessage(worker_to_managerSQS).getMessages();
-            while (!messages.isEmpty()) {
+                messages = sqs.receiveMessage(worker_to_managerSQS).getMessages();
                 while (!messages.isEmpty()) {
-                    Message msg = messages.remove(0);
-                    String msgBody = msg.getBody();
-                    String[] msg_splitted = msgBody.split(" ");
-                    String key = msg_splitted[0];
-                    Integer value = tasks_map.get(key);
-                    if(value != null){
-                        value --;
-                    }
-                    else{
-                        System.out.println("value is null" );
-                    }
+                    while (!messages.isEmpty()) {
+                        Message msg = messages.remove(0);
+                        String msgBody = msg.getBody();
+                        String[] msg_splitted = msgBody.split(" ");
+                        String key = msg_splitted[0];
+                        Integer value = tasks_map.get(key);
+                        if (value != null) {
+                            value--;
+
+                            if (value == 0) {
+                                String manager_to_Local_appSQS = getManager_to_Local_appSQS(sqs, key);
+                                SendMessageRequest task_is_done_request = new SendMessageRequest()
+                                        .withQueueUrl(manager_to_Local_appSQS)
+                                        .withMessageBody(key + " " + "is_done");
+
+                                sqs.sendMessage(task_is_done_request);
+
+                                tasks_map.remove(key);
+                                System.out.println("task: " + key + " is done");
+                                finish = true;
 
 
-                    System.out.println("while loop worker_to_managerSQS \n value : " + value);
+                            } else {
+                                tasks_map.replace(key, value);
+                                System.out.println("task: " + key + " new value - " + value);
+                            }
+
+
+                        } else {
+                            System.out.println("value is null");
+                        }
+
+
+                        System.out.println("while loop worker_to_managerSQS \n value : " + value);
 
 //                send DONE TASK msg to local
-                    if (value == 0) {
-                        String manager_to_Local_appSQS = getManager_to_Local_appSQS(sqs, key);
-                        SendMessageRequest task_is_done_request = new SendMessageRequest()
-                                .withQueueUrl(manager_to_Local_appSQS)
-                                .withMessageBody(key + " " + "is_done");
 
-                        sqs.sendMessage(task_is_done_request);
-
-                        tasks_map.remove(key);
-                        System.out.println("task: " + key + " is done");
-                        finish=true;
-
-
-                    } else {
-                        tasks_map.replace(key, value);
-                        System.out.println("task: " + key + " new value - " + value);
+                        sqs.deleteMessage(worker_to_managerSQS, msg.getReceiptHandle());
                     }
-                    sqs.deleteMessage(worker_to_managerSQS,msg.getReceiptHandle());
+                    messages = sqs.receiveMessage(worker_to_managerSQS).getMessages();
+
+
                 }
-                messages = sqs.receiveMessage(worker_to_managerSQS).getMessages();
+
+            }
+            if (terminate) {
+                TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(getWorkers_list(ec2));
+                ec2.terminateInstances(terminateInstancesRequest);
+                sqs.deleteQueue(local_to_managerSQS);
+                sqs.deleteQueue(worker_to_managerSQS);
+                sqs.deleteQueue(manager_to_workers_queue);
+
+                break;
 
 
             }
 
         }
 
+        ArrayList<String> manager_at_list = new ArrayList<>();
+        manager_at_list.add(getManager(ec2));
+        TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(manager_at_list);
         System.out.println("manager is done");
+
+        ec2.terminateInstances(terminateInstancesRequest);
+
 
 
 //        check workers_to_manager que for messages

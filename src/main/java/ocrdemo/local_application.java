@@ -140,8 +140,9 @@ public class local_application {
 
             System.out.println("===================================== MANAGER IS ALREADY UP =====================================================");
         }
+        String local_app_name = "izhak"+new Date().getTime();
 
-        String bucket_name = "manager-bucket-"+managerID;
+        String bucket_name = "bucket-"+local_app_name;
         Bucket bucket =  s3.createBucket(bucket_name);
 
 
@@ -151,13 +152,15 @@ public class local_application {
         String number_of_tasks_per_worker =  args[5];
 
         // Upload a file as a new object with ContentType and title specified.
-        String local_app_name = "Izhak"+new Date().getTime();
 //        String local_app_name = "Izhak1607356236606";
 
         String manager_to_localSQS = sqs.createQueue("manager-to-local-sqs" + local_app_name)
                 .getQueueUrl();
 
-        String file_to_upload = "fileObjKeyName" + new Date().getTime() +" "+number_of_tasks_per_worker + " " + local_app_name;
+        String optional_terminate = (args.length > 6 && args[6].equals("terminate")) ? "terminate" : "." ;
+
+        String file_to_upload = "fileObjKeyName" + new Date().getTime() +" "+number_of_tasks_per_worker + " "
+                + local_app_name + " " + optional_terminate;
 //        String path = "C:\\Users\\izhak\\IdeaProjects\\text.images.txt";     //TODO need to be args[0]
         String path = args[3];
 
@@ -271,13 +274,13 @@ public class local_application {
 
 
 
-        if(args.length > 6 && args[6].equals("terminate")) {
-            SendMessageRequest terminate_request = new SendMessageRequest()
-                    .withQueueUrl(local_to_managerSQS)
-                    .withMessageBody("terminate");
-
-            sqs.sendMessage(terminate_request);
-        }
+//        if(args.length > 6 && args[6].equals("terminate")) {
+//            SendMessageRequest terminate_request = new SendMessageRequest()
+//                    .withQueueUrl(local_to_managerSQS)
+//                    .withMessageBody("terminate");
+//
+//            sqs.sendMessage(terminate_request);
+//        }
 //            //TODO terminate manager at EC2
 //        }
 

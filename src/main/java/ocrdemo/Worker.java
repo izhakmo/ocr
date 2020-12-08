@@ -26,7 +26,6 @@ public class Worker {
         String manager_to_workers_queue = Manager.getManager_to_WorkerSQS(sqs, ec2);
         String worker_to_manager_queue = Manager.getWorker_to_ManagerSQS(sqs,ec2);
 //        String workerID = Manager.getWorker(ec2);
-        String bucketName = "manager-bucket-" + managerID;
         List<Message> messages =sqs.receiveMessage(manager_to_workers_queue).getMessages();
         ITesseract img_ocr_object = new Tesseract();
 
@@ -37,38 +36,55 @@ public class Worker {
         while (!messages.isEmpty()) {
             while (!messages.isEmpty()) {
                 Message msg = messages.remove(0);
-                String []msgBody = msg.getBody().split(" ");
-                String folder_name = msgBody[0];
-                String url = msgBody[1];
-                String url_number  = msgBody[2];
-
-                System.out.println(counter + ". msgBody: " + url);
-                System.out.println(counter + ". folder_name: " + folder_name);
 
 
-                counter++;
+//                if (msg.getBody().equals("terminate")) {
+//
+//                    sqs.deleteMessage(manager_to_workers_queue, msg.getReceiptHandle());
+//
+//
+//
+//                    SendMessageRequest terminate_msg = new SendMessageRequest()
+//                            .withQueueUrl(worker_to_manager_queue)
+//                            .withMessageBody( "terminated" );
+//
+//                    sqs.sendMessage(terminate_msg);
+//
+//
+//                    System.exit(0);
+//                }
+//
+//                else {
+                    String[] msgBody = msg.getBody().split(" ");
+                    String folder_name = msgBody[0];
+                    String url = msgBody[1];
+                    String url_number = msgBody[2];
 
-                String file_to_upload_to_s3 = url_number + "_" + url.substring(url.lastIndexOf('/') + 1);
+                    System.out.println(counter + ". msgBody: " + url);
+                    System.out.println(counter + ". folder_name: " + folder_name);
 
-                File file = new File(file_to_upload_to_s3);
-                System.out.println("file created" + file_to_upload_to_s3);
-                String ocr_output;
-                try {
-                    FileUtils.copyURLToFile(new URL(url), file,2000,2000);
+
+                    counter++;
+
+                    String file_to_upload_to_s3 = url_number + "_" + url.substring(url.lastIndexOf('/') + 1);
+
+                    File file = new File(file_to_upload_to_s3);
+                    System.out.println("file created" + file_to_upload_to_s3);
+                    String ocr_output;
+                    try {
+                        FileUtils.copyURLToFile(new URL(url), file, 2000, 2000);
 //                    try {
                         ocr_output = img_ocr_object.doOCR(file);
-                }
-                catch (TesseractException e) {
+                    } catch (TesseractException e) {
                         System.out.println(ocr_fail_counter + ". ocr failed");
                         ocr_fail_counter++;
 
                         ocr_output = url + ": ocr failed";
+                    } catch (Exception e) {
+                        ocr_output = url + ": broken or illegal url";
                     }
-                catch (Exception e) {
-                    ocr_output = url + ": broken or illegal url";
-                }
                     if (ocr_output != null) {
-                        String path_s3  = folder_name + "/" +file_to_upload_to_s3;
+                        String path_s3 = folder_name + "/" + file_to_upload_to_s3;
 
                         String txt_file_name = file_to_upload_to_s3 + ".txt";
                         String txt_path_s3 = folder_name + "/" + url + ".txt";
@@ -77,11 +93,13 @@ public class Worker {
                         file_writer.write(ocr_output);
                         file_writer.close();
 
+                        String bucketName = "bucket-" + folder_name;
 
 
-                        System.out.println("path_s3: " + path_s3+ ".");
+
+                        System.out.println("path_s3: " + path_s3 + ".");
 //                        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName ,path_s3 , file);
-                        PutObjectRequest putObjectRequest_txt = new PutObjectRequest(bucketName ,txt_path_s3 , txt_file);
+                        PutObjectRequest putObjectRequest_txt = new PutObjectRequest(bucketName, txt_path_s3, txt_file);
 
 //                        ObjectMetadata metadata = new ObjectMetadata();
 //                        metadata.addUserMetadata("OCR", ocr_output);
@@ -110,9 +128,6 @@ public class Worker {
 //                }
 
 
-
-
-
 //                Image_reader reader = new Image_reader(msgBody[0], msgBody[1]);
 //                String answer = reader.OCR();
 //                String answer = "reader.OCR()";
@@ -121,12 +136,15 @@ public class Worker {
 //                        .withMessageBody(answer);
 //
 //               sqs.sendMessage(send_msg_request);
-                sqs.deleteMessage(manager_to_workers_queue,msg.getReceiptHandle());
-                file.delete();
+                    sqs.deleteMessage(manager_to_workers_queue, msg.getReceiptHandle());
+                    file.delete();
 
+//                } else
+//                terminate msg
+
+
+                messages = sqs.receiveMessage(manager_to_workers_queue).getMessages();
             }
-
-            messages =sqs.receiveMessage(manager_to_workers_queue).getMessages();
         }
     }
 }
