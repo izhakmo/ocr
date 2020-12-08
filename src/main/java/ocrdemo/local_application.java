@@ -136,7 +136,7 @@ public class local_application {
         }
         else{
             local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
-            System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
+//            System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
 
             System.out.println("===================================== MANAGER IS ALREADY UP =====================================================");
         }
@@ -185,7 +185,7 @@ public class local_application {
 
 
 
-        System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
+//        System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
 
 
 
@@ -211,8 +211,8 @@ public class local_application {
 
         }
 
-//        String output_file_name = "output" + new Date().getTime() + ".html";
-        String output_file_name = args[4] + ".html";
+        String output_file_name = "output" + new Date().getTime() + ".html";
+//        String output_file_name = args[4] + ".html";
         int end_of_name = output_file_name.length()-5;
 
         File output_file = new File(output_file_name);
@@ -259,7 +259,7 @@ public class local_application {
 
                 fileWriter.write("</p>\n");
 
-
+                s3.deleteObject(bucket_name,key);
             }
             catch (Exception e){
                 e.printStackTrace();
@@ -294,6 +294,12 @@ public class local_application {
 //
         sqs.deleteMessage(manager_to_localSQS,msg.getReceiptHandle());
         sqs.deleteQueue(manager_to_localSQS);
+
+//        delete folder, txt file and bucket
+        s3.deleteObject(bucket_name,file_to_upload);
+        s3.deleteObject(bucket_name,local_app_name+"/");
+
+        s3.deleteBucket(bucket_name);
     }
 
 }
