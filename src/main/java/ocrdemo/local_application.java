@@ -71,7 +71,7 @@ public class local_application {
 
 
         String managerID = GetManager(ec2);
-        String local_to_managerSQS;
+        String local_to_managerSQS = null;
 
 
 
@@ -124,8 +124,8 @@ public class local_application {
                     .withKeyName(key_pair_string)  //TODO ?????
                     .withSecurityGroupIds("sg-0d23010af4dee7fa3")
                     .withTagSpecifications(tag_specification)
-                    .withIamInstanceProfile(spec)
-                    .withUserData(userData);
+                    .withIamInstanceProfile(spec);
+//                    .withUserData(userData);
 
 
             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
@@ -144,8 +144,15 @@ public class local_application {
             System.out.println("===================================== MANAGER CREATED =================================================");
         }
         else{
+            try{
             local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
+            }
 //            System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
+            catch (QueueDoesNotExistException e){
+                System.out.println("manager is terminating, please try again later");
+                System.exit(0);
+
+            }
 
             System.out.println("===================================== MANAGER IS ALREADY UP =====================================================");
         }

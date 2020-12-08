@@ -13,6 +13,7 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.QueueDoesNotExistException;
+import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 import java.io.*;
@@ -207,7 +208,7 @@ public class Manager {
         AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
         AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
         String managerID = getManager(ec2);
-        String ami = args[3];
+//        String ami = args[3];
 
 
         Map<String,Integer> tasks_map = new HashMap<>();
@@ -264,10 +265,13 @@ public class Manager {
 
         TagSpecification tag_specification = new TagSpecification();
 
+        ReceiveMessageRequest msg_from_local = new ReceiveMessageRequest()
+                .withMaxNumberOfMessages(1)
+                .withQueueUrl(local_to_managerSQS);
 
         while(true) {
             try {
-                messages_from_local = sqs.receiveMessage(local_to_managerSQS).getMessages();
+                messages_from_local = sqs.receiveMessage(msg_from_local).getMessages();
             }
             catch (QueueDoesNotExistException e){
                 messages_from_local = null;
@@ -401,14 +405,14 @@ public class Manager {
 //                    TODO this is not a todo
 //                      its omer's image and securityGroups
                             RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-                            runInstancesRequest.withImageId(ami)
+                            runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
                                     .withInstanceType(InstanceType.T2Micro)
                                     .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
                                     .withKeyName(key_pair_string)  //TODO ?????
                                     .withSecurityGroupIds("sg-0d23010af4dee7fa3")
                                     .withTagSpecifications(tag_specification)
-                                    .withIamInstanceProfile(spec)
-                                    .withUserData(userData);
+                                    .withIamInstanceProfile(spec);
+//                                    .withUserData(userData);
 
 
                             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
@@ -469,7 +473,7 @@ public class Manager {
                     }
 
 //                    TODO check that it doesnt brake the program
-                    messages_from_local = sqs.receiveMessage(local_to_managerSQS).getMessages();
+                    messages_from_local = sqs.receiveMessage(msg_from_local).getMessages();
 
 
                     msg_to_workers_queue_counter = 0;
@@ -538,7 +542,6 @@ public class Manager {
             if (terminate) {
                 TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(getWorkers_list(ec2));
                 ec2.terminateInstances(terminateInstancesRequest);
-//                sqs.deleteQueue(local_to_managerSQS);
                 sqs.deleteQueue(worker_to_managerSQS);
                 sqs.deleteQueue(manager_to_workers_queue);
 
