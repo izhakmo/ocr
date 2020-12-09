@@ -103,9 +103,11 @@ public class Worker {
 
         List<Message> messages;
 
-        ReceiveMessageRequest task = new ReceiveMessageRequest(manager_to_workers_queue);
-        task.withWaitTimeSeconds(5);
-        task.withVisibilityTimeout(60);
+        ReceiveMessageRequest task = new ReceiveMessageRequest()
+                .withQueueUrl(manager_to_workers_queue)
+                .withWaitTimeSeconds(5)
+                .withVisibilityTimeout(60)
+                .withMaxNumberOfMessages(1);
         while (true){
 
 
@@ -151,6 +153,8 @@ public class Worker {
                 String ocr_output;
                 try {
                     FileUtils.copyURLToFile(new URL(url), file, 2000, 2000);
+
+                    System.out.println("=============================================");
 //                    try {
                     ocr_output = img_ocr_object.doOCR(file);
                 } catch (TesseractException e) {

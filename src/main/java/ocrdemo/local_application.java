@@ -89,22 +89,26 @@ public class local_application {
             Tag tag = new Tag();
             tag.setKey("manager");
             tag.setValue("manager");
-            CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(tag);
 
-            tagsRequest.withTags(tag);
+            Tag tag_name = new Tag();
+            tag_name.setKey("Name");
+            tag_name.setValue("manager");
+            CreateTagsRequest tagsRequest = new CreateTagsRequest().withTags(tag,tag_name);
+
+            tagsRequest.withTags(tag,tag_name);
 
             TagSpecification tag_specification = new TagSpecification();
 
             IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
                     .withName("worker_and_sons");
 
-//            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-//            runInstancesRequest.withImageId("ami-04d29b6f966df1537")
-//                    .withInstanceType(InstanceType.T2Micro)
-//                    .withMinCount(1).withMaxCount(1)
-//                    .withKeyName(key_pair_string)  //TODO ?????
-//                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-//                    .withTagSpecifications(tag_specification);
+            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+            runInstancesRequest.withImageId("ami-0776c5209e7f72a8e")
+                    .withInstanceType(InstanceType.T2Micro)
+                    .withMinCount(1).withMaxCount(1)
+                    .withKeyName(key_pair_string)  //TODO ?????
+                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
+                    .withTagSpecifications(tag_specification);
 
 
             StringBuilder str = new StringBuilder();
@@ -117,14 +121,14 @@ public class local_application {
 
 //                    TODO this is not a todo
 //                      its omer's image and securityGroups
-            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-            runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
-                    .withInstanceType(InstanceType.T2Micro)
-                    .withMinCount(1).withMaxCount(1)
-                    .withKeyName(key_pair_string)  //TODO ?????
-                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-                    .withTagSpecifications(tag_specification)
-                    .withIamInstanceProfile(spec);
+//            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+//            runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
+//                    .withInstanceType(InstanceType.T2Micro)
+//                    .withMinCount(1).withMaxCount(1)
+//                    .withKeyName(key_pair_string)  //TODO ?????
+//                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
+//                    .withTagSpecifications(tag_specification)
+//                    .withIamInstanceProfile(spec);
 //                    .withUserData(userData);
 
 
@@ -133,7 +137,7 @@ public class local_application {
 
 
             CreateTagsRequest tag_request = new CreateTagsRequest()
-                    .withTags(tag)
+                    .withTags(tag,tag_name)
                     .withResources(managerID);
 
 //            CreateTagsResult tag_response = ec2.createTags(tag_request);
@@ -149,7 +153,7 @@ public class local_application {
             }
 //            System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
             catch (QueueDoesNotExistException e){
-                System.out.println("manager is terminating, please try again later");
+                    System.out.println("manager is terminating, please try again later");
                 System.exit(0);
 
             }
@@ -299,27 +303,9 @@ public class local_application {
         fileWriter.close();
 
 
-
-//        if(args.length > 6 && args[6].equals("terminate")) {
-//            SendMessageRequest terminate_request = new SendMessageRequest()
-//                    .withQueueUrl(local_to_managerSQS)
-//                    .withMessageBody("terminate");
-//
-//            sqs.sendMessage(terminate_request);
-//        }
-//            //TODO terminate manager at EC2
-//        }
-
-//            TODO check Qs - open manager if we no manager is up ==> tags
-//            TODO response
-//            TODO terminate works etc .....
-
-
-
-
-//
         sqs.deleteMessage(manager_to_localSQS,msg.getReceiptHandle());
         sqs.deleteQueue(manager_to_localSQS);
+
 
 //        delete folder, txt file and bucket
         s3.deleteObject(bucket_name,file_to_upload);

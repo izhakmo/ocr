@@ -189,9 +189,6 @@ public class Manager {
         return sqs.getQueueUrl("manager-to-local-sqs" + local_app_name).getQueueUrl();
     }
 
-    public void send_done_task_msg_to_local_app(String local_app_name){
-
-    }
 
     public static void createFolder(String bucketName, String folderName, AmazonS3 client) {
         // create meta-data for your folder and set content-length to 0
@@ -321,7 +318,7 @@ public class Manager {
                         }
 
 
-                        System.out.println("while loop worker_to_managerSQS \n value : " + value);
+//                        System.out.println("while loop worker_to_managerSQS \n value : " + value);
 
 //                send DONE TASK msg to local
 
@@ -357,6 +354,9 @@ public class Manager {
         }).start();
 
 
+//        =====================================================
+
+
 
         while(true) {
             try {
@@ -380,13 +380,7 @@ public class Manager {
                         String number_of_messages_per_worker = msg_splitted[1];
                         String local_app_name = msg_splitted[2];
                         String optional_terminate = msg_splitted[3];
-                        if (optional_terminate.equals("terminate")) {
-                            terminate = true;
 
-                            sqs.deleteQueue(local_to_managerSQS);
-
-
-                        }
 
                         String manager_to_Local_appSQS = getManager_to_Local_appSQS(sqs, local_app_name);
                         SendMessageRequest task_received = new SendMessageRequest()
@@ -407,6 +401,8 @@ public class Manager {
 
 
                         S3Object o = s3.getObject(object_request);
+                        S3Object o_two = s3.getObject(object_request);
+
                         S3ObjectInputStream object_content = o.getObjectContent();
                         System.out.println(msg_to_manager_Counter + ". msg_to_manager_Counter");
 //                displayTextInputStream(object_content);
@@ -423,6 +419,36 @@ public class Manager {
                             }
 
 //                    System.out.println(line);
+//                            SendMessageRequest url_msg_request_to_worker = new SendMessageRequest()
+//                                    .withQueueUrl(manager_to_workers_queue)
+//                                    .withMessageBody(local_app_name + " " + line + " " + url_number);
+//
+//                            sqs.sendMessage(url_msg_request_to_worker);
+
+                            url_number++;
+//                            msg_to_workers_queue_counter++;
+
+                        }
+
+                        tasks_map.put(local_app_name, url_number);
+                        System.out.println("task added to map :\n key- " + local_app_name + "\nvalue- " + url_number);
+
+
+                        object_content = o_two.getObjectContent();
+                        reader = new BufferedReader(new InputStreamReader(object_content));
+
+                        System.out.println("=================================================================================");
+
+                        System.out.println("number of urls : " + url_number);
+
+                        url_number = 0;
+
+                        while ((line = reader.readLine()) != null) {
+                            if (line.length() == 0) {
+                                continue;
+                            }
+
+                    System.out.println(url_number + ". line " + line);
                             SendMessageRequest url_msg_request_to_worker = new SendMessageRequest()
                                     .withQueueUrl(manager_to_workers_queue)
                                     .withMessageBody(local_app_name + " " + line + " " + url_number);
@@ -434,11 +460,11 @@ public class Manager {
 
                         }
 
-                        tasks_map.put(local_app_name, url_number);
-                        System.out.println("task added to map :\n key- " + local_app_name + "\nvalue- " + url_number);
 
 
-                        int number_of_workers_needed_for_task = (msg_to_workers_queue_counter / Integer.parseInt(number_of_messages_per_worker)) + 1;
+                        int number_of_workers_needed_for_task = (msg_to_workers_queue_counter / Integer.parseInt(number_of_messages_per_worker));
+                        number_of_workers_needed_for_task = (number_of_workers_needed_for_task == 0) ? 1 : number_of_workers_needed_for_task;
+
                         System.out.println(msg_to_manager_Counter + ". number_of_workers_needed_for_task: " + number_of_workers_needed_for_task);
 
 
@@ -448,6 +474,15 @@ public class Manager {
                         }
                         catch (QueueDoesNotExistException e){
                             System.out.println("manager is terminating");
+
+                        }
+
+
+                        if (optional_terminate.equals("terminate")) {
+                            terminate = true;
+
+                            sqs.deleteQueue(local_to_managerSQS);
+
 
                         }
 
@@ -474,13 +509,13 @@ public class Manager {
                             IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
                                     .withName("worker_and_sons");
 
-//                    RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-//                    runInstancesRequest.withImageId("ami-04d29b6f966df1537")
-//                            .withInstanceType(InstanceType.T2Micro)
-//                            .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
-//                            .withKeyName(key_pair_string)  //TODO ?????
-//                            .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-//                            .withTagSpecifications(tag_specification);
+                    RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+                    runInstancesRequest.withImageId("ami-0776c5209e7f72a8e")
+                            .withInstanceType(InstanceType.T2Micro)
+                            .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
+                            .withKeyName(key_pair_string)  //TODO ?????
+                            .withSecurityGroupIds("sg-0d23010af4dee7fa3")
+                            .withTagSpecifications(tag_specification);
 
 
 
@@ -491,16 +526,16 @@ public class Manager {
                             str.append("java -jar /home/ubuntu/WorkerApp.jar");
                             String userData = str.toString();
 
-//                    TODO this is not a todo
-//                      its omer's image and securityGroups
-                            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-                            runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
-                                    .withInstanceType(InstanceType.T2Micro)
-                                    .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
-                                    .withKeyName(key_pair_string)  //TODO ?????
-                                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-                                    .withTagSpecifications(tag_specification)
-                                    .withIamInstanceProfile(spec);
+////                    TODO this is not a todo
+////                      its omer's image and securityGroups
+//                            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+//                            runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
+//                                    .withInstanceType(InstanceType.T2Micro)
+//                                    .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
+//                                    .withKeyName(key_pair_string)  //TODO ?????
+//                                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
+//                                    .withTagSpecifications(tag_specification)
+//                                    .withIamInstanceProfile(spec);
 //                                    .withUserData(userData);
 
 
