@@ -102,34 +102,31 @@ public class local_application {
             IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
                     .withName("worker_and_sons");
 
+            String userData = "";
+            userData = userData + "#!/bin/bash" + "\n";
+            userData = userData + "wget https://omertzukijarbucket.s3.amazonaws.com/ManagerApp.jar" + "\n";
+            userData = userData + "java -jar ManagerApp.jar" + "\n";
+            String base64UserData = null;
+            try {
+                base64UserData = new String(Base64.getEncoder().encode(userData.getBytes( "UTF-8" )), "UTF-8" );
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
+
+
+
+
             RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
             runInstancesRequest.withImageId("ami-0776c5209e7f72a8e")
                     .withInstanceType(InstanceType.T2Micro)
                     .withMinCount(1).withMaxCount(1)
-                    .withKeyName(key_pair_string)  //TODO ?????
-                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-                    .withTagSpecifications(tag_specification);
+                    .withKeyName("omer_and_tzuki")  //TODO ?????
+                    .withSecurityGroupIds("sg-4d22bd78")
+                    .withTagSpecifications(tag_specification)
+                    .withIamInstanceProfile(spec)
+                    .withUserData(base64UserData);
 
 
-            StringBuilder str = new StringBuilder();
-            str.append("#!/bin/sh");
-            str.append("\n");
-            str.append("java -jar /home/ubuntu/ManagerApp.jar ami-0b43de3e8b3bb4e5d");
-            String userData = str.toString();
-
-
-
-//                    TODO this is not a todo
-//                      its omer's image and securityGroups
-//            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-//            runInstancesRequest.withImageId("ami-0b43de3e8b3bb4e5d")
-//                    .withInstanceType(InstanceType.T2Micro)
-//                    .withMinCount(1).withMaxCount(1)
-//                    .withKeyName(key_pair_string)  //TODO ?????
-//                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
-//                    .withTagSpecifications(tag_specification)
-//                    .withIamInstanceProfile(spec);
-//                    .withUserData(userData);
 
 
             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
