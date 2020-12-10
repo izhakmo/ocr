@@ -201,15 +201,10 @@ we don't send credentials but using userData to give workers and manager access.
 
 this is why the manager doesn't makes a summary file (expensive and long action) but send the local app "done task" message and then the local app makes the html
 
--What about persistence? What if a node dies? What if a node stalls for a while? Have you taken care of all possible outcomes in the system? Think of more possible issues that might arise from failures. What did you do to solve it? What about broken communications? Be sure to handle all fail-cases!
-
-
-?????????????????????????
-
 
 -Did you manage the termination process? Be sure all is closed once requested!
 
-**************************************************** TODOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO ****************************************************
+when manager receive a termination message he deletes the "local-to-manager-sqs" and therefore other local apps from now on will receive "manager is terminating, please try again later" and will close the local apps resources. after receiving a terminate message, the manager will keep receiving messages from workers untill all of the local apps that need to be handled are done. then the mananger terminate the workers, all of his resources and at the end he terminates him self. 
 
 -Did you take in mind the system limitations that we are using? Be sure to use it to its fullest!
 
@@ -218,4 +213,10 @@ we limited the manager to open no more than 18 workers
 -Are all your workers working hard? Or some are slacking? Why?
 
 there is only one queue to which all workers listen - therefore when worker is not busy working he can proceed working on another task
+
+-How long does it take your local application to run from start to finish?
+if there aren't any instances running yet, it took us 02:18 minutes to run it from end to end, including the terminate command.
+if there are already instances running, it takes 19 seconds.
+
+
 

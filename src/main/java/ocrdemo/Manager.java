@@ -463,7 +463,7 @@ public class Manager {
                                     .withInstanceType(InstanceType.T2Micro)
                                     .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
                                     .withKeyName("omer_and_tzuki")  //TODO ?????
-                                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
+                                    .withSecurityGroupIds("sg-4d22bd78")
                                     .withTagSpecifications(tag_specification)
                                     .withIamInstanceProfile(spec)
                                     .withUserData(base64UserData);
