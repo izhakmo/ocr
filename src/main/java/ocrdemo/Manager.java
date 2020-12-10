@@ -131,12 +131,9 @@ public class Manager {
         }
     }
 
-    public static List<String>getWorkers_list(AmazonEC2 ec2) {
+    public static List<String>getWorkers_list(AmazonEC2 ec2,List<String> valuesT2) {
         List<String> valuesT1 = new ArrayList<>();
         valuesT1.add("worker");
-        List<String> valuesT2 = new ArrayList<>();
-        valuesT2.add("running");
-        valuesT2.add("pending");
         Filter filter_worker = new Filter("tag:worker", valuesT1);
         Filter filter_running = new Filter("instance-state-name",valuesT2);
 
@@ -218,7 +215,9 @@ public class Manager {
 
 //        boolean terminate = false;
 
-
+        List<String> valuesT2 = new ArrayList<>();
+        valuesT2.add("running");
+        valuesT2.add("pending");
 
 
         String local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
@@ -247,7 +246,7 @@ public class Manager {
 
 
 
-        List<String> active_workersID = getWorkers_list(ec2);
+        List<String> active_workersID = getWorkers_list(ec2,valuesT2);
 
 
         int number_of_active_workers = active_workersID.size();
@@ -335,7 +334,9 @@ public class Manager {
 
 
                 if (tasks_map.isEmpty() && terminate) {
-                    TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(getWorkers_list(ec2));
+                    valuesT2.add("stopping");
+                    valuesT2.add("stopped ");
+                    TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(getWorkers_list(ec2,valuesT2));
                     ec2.terminateInstances(terminateInstancesRequest);
                     sqs.deleteQueue(worker_to_managerSQS);
                     sqs.deleteQueue(manager_to_workers_queue);
@@ -527,7 +528,7 @@ public class Manager {
                                     .withInstanceType(InstanceType.T2Micro)
                                     .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
                                     .withKeyName("omer_and_tzuki")  //TODO ?????
-                                    .withSecurityGroupIds("sg-4d22bd78")
+                                    .withSecurityGroupIds("sg-0d23010af4dee7fa3")
                                     .withTagSpecifications(tag_specification)
                                     .withIamInstanceProfile(spec)
                                     .withUserData(base64UserData);
