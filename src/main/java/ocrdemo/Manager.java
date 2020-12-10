@@ -270,7 +270,7 @@ public class Manager {
 
                 if (tasks_map.isEmpty() && terminate) {
                     valuesT2.add("stopping");
-                    valuesT2.add("stopped ");
+                    valuesT2.add("stopped");
                     TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(getWorkers_list(ec2,valuesT2));
                     ec2.terminateInstances(terminateInstancesRequest);
                     sqs.deleteQueue(worker_to_managerSQS);
