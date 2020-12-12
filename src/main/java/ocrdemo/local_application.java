@@ -1,4 +1,5 @@
 package ocrdemo;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.*;
@@ -32,7 +33,6 @@ public class local_application {
         valuesT2.add("pending");
         Filter filter_manager = new Filter("tag:manager", valuesT1);
         Filter filter_running = new Filter("instance-state-name",valuesT2);
-//        Filter filter_running = new Filter("tag:manager", valuesT1);
 
         DescribeInstancesRequest request = new DescribeInstancesRequest().withFilters(filter_manager,filter_running);
 
@@ -46,7 +46,6 @@ public class local_application {
 
             for (Instance instance : instances) {
 
-//                System.out.println(instance.getInstanceId());
                 manager = instance.getInstanceId();
                 System.out.println("manager: "+ manager);
 
@@ -63,28 +62,12 @@ public class local_application {
 
     public static void main(String[] args) throws IOException {
 
-//        key pair request
-
-        String key_pair_string = "key"+new Date().getTime();
-        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
-        createKeyPairRequest.withKeyName(key_pair_string);
-
-
         String managerID = GetManager(ec2);
         String local_to_managerSQS = null;
 
 
 
-        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
-
-        KeyPair keyPair;
-        keyPair = createKeyPairResult.getKeyPair();
-
-//        String privateKey = keyPair.getKeyMaterial();
-        keyPair.getKeyMaterial();
-
-
-        //TODO check if a manager instance is active
+        //check if a manager instance is active
         if(managerID == null) {
             Tag tag = new Tag();
             tag.setKey("manager");
@@ -137,7 +120,6 @@ public class local_application {
                     .withTags(tag,tag_name)
                     .withResources(managerID);
 
-//            CreateTagsResult tag_response = ec2.createTags(tag_request);
             ec2.createTags(tag_request);
 
             local_to_managerSQS = sqs.createQueue("local-to-manager-sqs" + managerID).getQueueUrl();
@@ -148,7 +130,6 @@ public class local_application {
             try{
             local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
             }
-//            System.out.println("local_to_managerSQS: "+ local_to_managerSQS);
             catch (QueueDoesNotExistException e){
                     System.out.println("manager is terminating, please try again later");
                 System.exit(0);
@@ -164,15 +145,11 @@ public class local_application {
 
 
 
-//        TODO so far the number below is defualt and not the real one
-//        String number_of_tasks_per_worker =  "5";
         String number_of_tasks_per_worker =  args[5];
 
         // Upload a file as a new object with ContentType and title specified.
 //        String local_app_name = "Izhak1607356236606";
 
-        String manager_to_localSQS = sqs.createQueue("manager-to-local-sqs" + local_app_name)
-                .getQueueUrl();
 
         String optional_terminate = (args.length > 6 && args[6].equals("terminate")) ? "terminate" : "." ;
 
@@ -188,8 +165,16 @@ public class local_application {
         metadata.setContentType("moshe Type");
         metadata.addUserMetadata("title", "Amir.Tal rock hard");
         putObjectRequest.setMetadata(metadata);
-        s3.putObject(putObjectRequest);
+        try {
+            s3.putObject(putObjectRequest);
+        }
+        catch(SdkClientException e){
+            System.out.println("URLs file did not found, please try again");
+            s3.deleteBucket(bucket_name);
+            System.exit(0);
+        }
 
+        String manager_to_localSQS = sqs.createQueue("manager-to-local-sqs" + local_app_name).getQueueUrl();
 
         SendMessageRequest send_msg_request = new SendMessageRequest()
                 .withQueueUrl(local_to_managerSQS)
@@ -238,8 +223,8 @@ public class local_application {
 
         }
 
-        String output_file_name = "output" + new Date().getTime() + ".html";
-//        String output_file_name = args[4] + ".html";
+//        String output_file_name = "output" + new Date().getTime() + ".html";
+        String output_file_name = args[4] + ".html";
         int end_of_name = output_file_name.length()-5;
 
         File output_file = new File(output_file_name);
@@ -252,49 +237,49 @@ public class local_application {
         List<S3ObjectSummary> summaryList = texts.getObjectSummaries();
         summaryList = summaryList.subList(1, summaryList.size());
 
-        for (S3ObjectSummary summary: summaryList) {
-            String key = summary.getKey();
-            System.out.println("summary list key : " + key);
+
+//        while() {
+            for (S3ObjectSummary summary : summaryList) {
+                String key = summary.getKey();
+                System.out.println("summary list key : " + key);
 
 
-            try {
-                S3Object o = s3.getObject(bucket_name, key);
+                try {
+                    S3Object o = s3.getObject(bucket_name, key);
 
-                S3ObjectInputStream object_content = o.getObjectContent();
-                System.out.println("object received ");
+                    S3ObjectInputStream object_content = o.getObjectContent();
+                    System.out.println("object received ");
 
-                BufferedReader reader = new BufferedReader(new InputStreamReader(object_content));
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(object_content));
 
-                String line;
+                    String line;
 
                 int start_of_url = local_app_name.length()+1;
                 int end_of_url = key.length()-4;
                 fileWriter.write("<p>\n<img src=\""+key.substring(start_of_url,end_of_url) + "\">\n");
 //                StringBuilder object_body= new StringBuilder();
 //                int bodies = 1;
-                while ((line = reader.readLine()) != null){
+                    while ((line = reader.readLine()) != null) {
 //                    object_body.append(line).append("\n");
 //                    object_body.append("\n");
-                    fileWriter.write("<br>" + line);
+                        fileWriter.write("<br>" + line);
 
 
 //                    System.out.println("number of while loops : " + bodies);
 //                    bodies++;
+                    }
+
+
+                    fileWriter.write("</p>\n");
+
+                    s3.deleteObject(bucket_name, key);
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
 
 
-
-                fileWriter.write("</p>\n");
-
-                s3.deleteObject(bucket_name,key);
             }
-            catch (Exception e){
-                e.printStackTrace();
-            }
-
-
-
-        }
+//        }
 
         fileWriter.write("</body>\n</html>");
         fileWriter.close();
@@ -306,7 +291,6 @@ public class local_application {
 
 //        delete folder, txt file and bucket
         s3.deleteObject(bucket_name,file_to_upload);
-        s3.deleteObject(bucket_name,local_app_name+"/");
 
         s3.deleteBucket(bucket_name);
     }
