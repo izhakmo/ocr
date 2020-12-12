@@ -152,7 +152,7 @@ public class Worker {
                 System.out.println("file created" + file_to_upload_to_s3);
                 String ocr_output;
                 try {
-                    FileUtils.copyURLToFile(new URL(url), file, 2000, 2000);
+                    FileUtils.copyURLToFile(new URL(url), file, 5000, 5000);
 
                     System.out.println("=============================================");
 //                    try {
@@ -181,18 +181,18 @@ public class Worker {
 //                        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName ,path_s3 , file);
                 PutObjectRequest putObjectRequest_txt = new PutObjectRequest(bucketName, txt_path_s3, txt_file);
 
-//                        ObjectMetadata metadata = new ObjectMetadata();
-//                        metadata.addUserMetadata("OCR", ocr_output);
-//                        putObjectRequest.setMetadata(metadata);
-//                        s3.putObject(putObjectRequest);
-                s3.putObject(putObjectRequest_txt);
 
-                System.out.println(url_number + ". ocr_output:" + ocr_output);
-                SendMessageRequest send_msg_request = new SendMessageRequest()
-                        .withQueueUrl(worker_to_manager_queue)
-                        .withMessageBody(folder_name);
+//                send a message to manager and remove item only if no one processed the message yet
+                if(!s3.doesObjectExist(bucketName,txt_path_s3)) {
+                    s3.putObject(putObjectRequest_txt);
+                    System.out.println(url_number + ". ocr_output:" + ocr_output);
+                    SendMessageRequest send_msg_request = new SendMessageRequest()
+                            .withQueueUrl(worker_to_manager_queue)
+                            .withMessageBody(folder_name);
 
-                sqs.sendMessage(send_msg_request);
+                    sqs.sendMessage(send_msg_request);
+                }
+
 
                 txt_file.delete();
 
