@@ -121,6 +121,19 @@ public class Manager {
         return sqs.getQueueUrl("manager-to-local-sqs" + local_app_name).getQueueUrl();
     }
 
+    public static RunInstancesRequest get_run_instance_request(int number_of_workers_to_create, TagSpecification tag_specification , IamInstanceProfileSpecification spec,String base64UserData ) {
+        RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+        runInstancesRequest.withImageId("ami-0776c5209e7f72a8e")
+                .withInstanceType(InstanceType.T2Micro)
+                .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
+                .withKeyName("omer_and_tzuki")  //TODO ?????
+                .withSecurityGroupIds("sg-4d22bd78")
+                .withTagSpecifications(tag_specification)
+                .withIamInstanceProfile(spec)
+                .withUserData(base64UserData);
+
+        return runInstancesRequest;
+    }
 
     public static void createFolder(String bucketName, String folderName, AmazonS3 client) {
         // create meta-data for your folder and set content-length to 0
@@ -155,6 +168,13 @@ public class Manager {
         valuesT2.add("pending");
 
 
+        List<String> stopped_stopping = new ArrayList<>();
+        stopped_stopping.add("stopping");
+        stopped_stopping.add("stopped");
+
+
+
+
         String local_to_managerSQS = sqs.getQueueUrl("local-to-manager-sqs" + managerID).getQueueUrl();
 
         String worker_to_managerSQS = getWorker_to_ManagerSQS(sqs,ec2,managerID);
@@ -164,6 +184,19 @@ public class Manager {
 
         int msg_to_manager_Counter = 1;
         int msg_to_workers_queue_counter = 0;
+
+        String userData = "";
+        userData = userData + "#!/bin/bash" + "\n";
+        userData = userData + "wget https://omertzukijarbucket.s3.amazonaws.com/WorkerApp.jar" + "\n";
+        userData = userData + "java -jar WorkerApp.jar" + "\n";
+        String base64UserData = null;
+        try {
+            base64UserData = new String(Base64.getEncoder().encode(userData.getBytes( "UTF-8" )), "UTF-8" );
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+
+        IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification().withName("worker_and_sons");
 
 
 //        String key_pair_string = "key"+new Date().getTime();
@@ -204,7 +237,8 @@ public class Manager {
 
         ReceiveMessageRequest msg_from_local = new ReceiveMessageRequest()
                 .withMaxNumberOfMessages(1)
-                .withQueueUrl(local_to_managerSQS);
+                .withQueueUrl(local_to_managerSQS)
+                .withWaitTimeSeconds(5);
 
 
 
@@ -442,33 +476,7 @@ public class Manager {
                         System.out.println("number_of_workers_to_create: " + number_of_workers_to_create);
 
                         if (number_of_workers_to_create > 0) {
-
-                            IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
-                                    .withName("worker_and_sons");
-                            String userData = "";
-                            userData = userData + "#!/bin/bash" + "\n";
-                            userData = userData + "wget https://omertzukijarbucket.s3.amazonaws.com/WorkerApp.jar" + "\n";
-                            userData = userData + "java -jar WorkerApp.jar" + "\n";
-                            String base64UserData = null;
-                            try {
-                                base64UserData = new String(Base64.getEncoder().encode(userData.getBytes( "UTF-8" )), "UTF-8" );
-                            } catch (UnsupportedEncodingException e) {
-                                e.printStackTrace();
-                            }
-
-
-
-
-                            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-                            runInstancesRequest.withImageId("ami-0776c5209e7f72a8e")
-                                    .withInstanceType(InstanceType.T2Micro)
-                                    .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
-                                    .withKeyName("omer_and_tzuki")  //TODO ?????
-                                    .withSecurityGroupIds("sg-4d22bd78")
-                                    .withTagSpecifications(tag_specification)
-                                    .withIamInstanceProfile(spec)
-                                    .withUserData(base64UserData);
-
+                            RunInstancesRequest runInstancesRequest = get_run_instance_request(number_of_workers_to_create,tag_specification,spec,base64UserData);
 
 
                             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
@@ -528,11 +536,28 @@ public class Manager {
                         break;
                     }
 
+
 //                    TODO check that it doesnt brake the program
                     messages_from_local = sqs.receiveMessage(msg_from_local).getMessages();
 
 
                     msg_to_workers_queue_counter = 0;
+
+
+                    List<String> stopped_workers = getWorkers_list(ec2,stopped_stopping);
+                    if(stopped_workers.size() != 0){
+                        TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(stopped_stopping);
+                        try {
+                            ec2.terminateInstances(terminateInstancesRequest);
+                        }
+                        catch (Exception e){
+                            System.out.println("could not terminate instances");
+                        }
+                    }
+                    active_workersID = getWorkers_list(ec2,valuesT2);
+                    if(number_of_active_workers != active_workersID.size()){
+                        ec2.runInstances(get_run_instance_request(number_of_active_workers-active_workersID.size(),tag_specification,spec,base64UserData));
+                    }
 
                 }   // second while != null loop
             }

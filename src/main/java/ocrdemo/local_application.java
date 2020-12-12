@@ -191,8 +191,8 @@ public class local_application {
             }
 
             Message acc = messages.get(0);
-            System.out.println(acc.getBody());
-            System.out.println("========================================================================");
+//            System.out.println(acc.getBody());
+//            System.out.println("========================================================================");
             sqs.deleteMessage(manager_to_localSQS,acc.getReceiptHandle());
 
         }
@@ -218,7 +218,7 @@ public class local_application {
 //        task is not done yet
         while(messages.size() == 0 ){
             messages = sqs.receiveMessage(task_is_done_msg_request).getMessages();
-            System.out.println("msg_not_receive_counter: "+ msg_not_receive_counter);
+//            System.out.println("msg_not_receive_counter: "+ msg_not_receive_counter);
             msg_not_receive_counter++;
 
         }
