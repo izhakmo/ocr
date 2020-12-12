@@ -166,14 +166,14 @@ public class Manager {
         int msg_to_workers_queue_counter = 0;
 
 
-        String key_pair_string = "key"+new Date().getTime();
-        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
-        createKeyPairRequest.withKeyName(key_pair_string);
-
-        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
-
-        KeyPair keyPair = new KeyPair();
-        keyPair = createKeyPairResult.getKeyPair();
+//        String key_pair_string = "key"+new Date().getTime();
+//        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
+//        createKeyPairRequest.withKeyName(key_pair_string);
+//
+//        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
+//
+//        KeyPair keyPair = new KeyPair();
+//        keyPair = createKeyPairResult.getKeyPair();
 
 
 
@@ -422,6 +422,7 @@ public class Manager {
 
                         }
 
+                        number_of_active_workers = active_workersID.size();
 
                         int number_of_workers_to_create = number_of_workers_needed_for_task - number_of_active_workers;
 
