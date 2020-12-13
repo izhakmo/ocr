@@ -100,7 +100,7 @@ public class local_application {
 
 
             RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-            runInstancesRequest.withImageId("ami-0776c5209e7f72a8e")
+            runInstancesRequest.withImageId("ami-050a9f83b573a6eb2")
                     .withInstanceType(InstanceType.T2Micro)
                     .withMinCount(1).withMaxCount(1)
                     .withKeyName("omer_and_tzuki")  //TODO ?????
@@ -291,7 +291,7 @@ public class local_application {
 
 //        delete folder, txt file and bucket
         s3.deleteObject(bucket_name,file_to_upload);
-
+        s3.deleteObject(bucket_name, local_app_name+"/");
         s3.deleteBucket(bucket_name);
     }
 

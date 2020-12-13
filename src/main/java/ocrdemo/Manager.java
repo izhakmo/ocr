@@ -123,10 +123,10 @@ public class Manager {
 
     public static RunInstancesRequest get_run_instance_request(int number_of_workers_to_create, TagSpecification tag_specification , IamInstanceProfileSpecification spec,String base64UserData ) {
         RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
-        runInstancesRequest.withImageId("ami-0776c5209e7f72a8e")
+        runInstancesRequest.withImageId("ami-050a9f83b573a6eb2")
                 .withInstanceType(InstanceType.T2Micro)
                 .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
-                .withKeyName("omer_and_tzuki")  //TODO ?????
+                .withKeyName("omer_and_tzuki")
                 .withSecurityGroupIds("sg-4d22bd78")
                 .withTagSpecifications(tag_specification)
                 .withIamInstanceProfile(spec)
@@ -156,6 +156,9 @@ public class Manager {
         AmazonEC2 ec2 = AmazonEC2ClientBuilder.defaultClient();
         AmazonSQS sqs = AmazonSQSClientBuilder.defaultClient();
         String managerID = getManager(ec2);
+        String base64UserData = null;
+        IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification()
+                .withName("worker_and_sons");
 //        String ami = args[3];
 
 
@@ -185,28 +188,15 @@ public class Manager {
         int msg_to_manager_Counter = 1;
         int msg_to_workers_queue_counter = 0;
 
-        String userData = "";
-        userData = userData + "#!/bin/bash" + "\n";
-        userData = userData + "wget https://omertzukijarbucket.s3.amazonaws.com/WorkerApp.jar" + "\n";
-        userData = userData + "java -jar WorkerApp.jar" + "\n";
-        String base64UserData = null;
-        try {
-            base64UserData = new String(Base64.getEncoder().encode(userData.getBytes( "UTF-8" )), "UTF-8" );
-        } catch (UnsupportedEncodingException e) {
-            e.printStackTrace();
-        }
 
-        IamInstanceProfileSpecification spec = new IamInstanceProfileSpecification().withName("worker_and_sons");
+        String key_pair_string = "key"+new Date().getTime();
+        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
+        createKeyPairRequest.withKeyName(key_pair_string);
 
+        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
 
-//        String key_pair_string = "key"+new Date().getTime();
-//        CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest();
-//        createKeyPairRequest.withKeyName(key_pair_string);
-//
-//        CreateKeyPairResult createKeyPairResult = ec2.createKeyPair(createKeyPairRequest);
-//
-//        KeyPair keyPair = new KeyPair();
-//        keyPair = createKeyPairResult.getKeyPair();
+        KeyPair keyPair = new KeyPair();
+        keyPair = createKeyPairResult.getKeyPair();
 
 
 
@@ -476,7 +466,30 @@ public class Manager {
                         System.out.println("number_of_workers_to_create: " + number_of_workers_to_create);
 
                         if (number_of_workers_to_create > 0) {
-                            RunInstancesRequest runInstancesRequest = get_run_instance_request(number_of_workers_to_create,tag_specification,spec,base64UserData);
+
+
+                            String userData = "";
+                            userData = userData + "#!/bin/bash" + "\n";
+                            userData = userData + "wget https://omertzukijarbucket.s3.amazonaws.com/WorkerApp.jar" + "\n";
+                            userData = userData + "java -jar WorkerApp.jar" + "\n";
+
+                            try {
+                                base64UserData = new String(Base64.getEncoder().encode(userData.getBytes( "UTF-8" )), "UTF-8" );
+                            } catch (UnsupportedEncodingException e) {
+                                e.printStackTrace();
+                            }
+
+
+                            RunInstancesRequest runInstancesRequest = new RunInstancesRequest();
+                            runInstancesRequest.withImageId("ami-050a9f83b573a6eb2")
+                                    .withInstanceType(InstanceType.T2Micro)
+                                    .withMinCount(number_of_workers_to_create).withMaxCount(number_of_workers_to_create)
+                                    .withKeyName("omer_and_tzuki")  //TODO ?????
+                                    .withSecurityGroupIds("sg-4d22bd78")
+                                    .withTagSpecifications(tag_specification)
+                                    .withIamInstanceProfile(spec)
+                                    .withUserData(base64UserData);
+
 
 
                             RunInstancesResult runInstancesResult = ec2.runInstances(runInstancesRequest);
@@ -544,20 +557,20 @@ public class Manager {
                     msg_to_workers_queue_counter = 0;
 
 
-                    List<String> stopped_workers = getWorkers_list(ec2,stopped_stopping);
-                    if(stopped_workers.size() != 0){
-                        TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(stopped_stopping);
-                        try {
-                            ec2.terminateInstances(terminateInstancesRequest);
-                        }
-                        catch (Exception e){
-                            System.out.println("could not terminate instances");
-                        }
-                    }
-                    active_workersID = getWorkers_list(ec2,valuesT2);
-                    if(number_of_active_workers != active_workersID.size()){
-                        ec2.runInstances(get_run_instance_request(number_of_active_workers-active_workersID.size(),tag_specification,spec,base64UserData));
-                    }
+//                    List<String> stopped_workers = getWorkers_list(ec2,stopped_stopping);
+//                    if(stopped_workers.size() != 0){
+//                        TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest(stopped_stopping);
+//                        try {
+//                            ec2.terminateInstances(terminateInstancesRequest);
+//                        }
+//                        catch (Exception e){
+//                            System.out.println("could not terminate instances");
+//                        }
+//                    }
+//                    active_workersID = getWorkers_list(ec2,valuesT2);
+//                    if(number_of_active_workers != active_workersID.size()){
+//                        ec2.runInstances(get_run_instance_request(number_of_active_workers-active_workersID.size(),tag_specification,spec,base64UserData));
+//                    }
 
                 }   // second while != null loop
             }

@@ -96,6 +96,8 @@ public class Worker {
 //        String workerID = Manager.getWorker(ec2);
 
         ITesseract img_ocr_object = new Tesseract();
+        img_ocr_object.setDatapath("/usr/local/share/");
+        img_ocr_object.setLanguage("eng");
 
 //        int counter = 1;
 //        int ocr_fail_counter=1;
@@ -168,7 +170,7 @@ public class Worker {
                 String path_s3 = folder_name + "/" + file_to_upload_to_s3;
 
                 String txt_file_name = file_to_upload_to_s3 + ".txt";
-                String txt_path_s3 = folder_name + "/" + url + ".txt";
+                String txt_path_s3 = folder_name + "/" + url_number + "_x_x_x_" + url + ".txt";
                 File txt_file = new File(txt_file_name);
                 FileWriter file_writer = new FileWriter(txt_file_name);
                 file_writer.write(ocr_output);
