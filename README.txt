@@ -1,5 +1,5 @@
-Izhak Moalem	205489230
-Omer Nutovitz	205926587
+Izhak Moalem	
+Omer Nutovitz	
 
 
 OCR
